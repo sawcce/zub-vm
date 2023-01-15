@@ -185,6 +185,7 @@ pub enum Expr {
     While(ExprNode, ExprNode),
 
     List(Vec<ExprNode>),
+    Tuple(Vec<ExprNode>),
     Dict(Vec<ExprNode>, Vec<ExprNode>), // They need to be the same size, funny enough
     SetElement(ExprNode, ExprNode, ExprNode),
     GetElement(ExprNode, ExprNode),

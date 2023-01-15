@@ -58,6 +58,10 @@ impl IrBuilder {
         Expr::GetElement(list, index).node(TypeInfo::nil())
     }
 
+    pub fn tuple(&self, members: Vec<ExprNode>) -> ExprNode {
+        Expr::Tuple(members).node(TypeInfo::nil())
+    }
+
     pub fn dict(&self, keys: Vec<ExprNode>, values: Vec<ExprNode>) -> ExprNode {
         Expr::Dict(keys, values).node(TypeInfo::nil())
     }

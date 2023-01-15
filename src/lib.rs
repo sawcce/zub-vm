@@ -5,14 +5,14 @@ extern crate flame;
 extern crate flamer;
 extern crate im_rc;
 
-pub mod vm;
-pub mod ir;
 pub mod compiler;
+pub mod ir;
+pub mod vm;
 
 #[cfg(test)]
 mod tests {
-    use super::vm::*;
     use super::ir::*;
+    use super::vm::*;
 
     #[test]
     fn globals() {
@@ -82,7 +82,7 @@ mod tests {
         vm.exec(&builder.build(), true);
         println!("{:#?}", vm.globals)
     }
-    
+
     #[test]
     fn actual_real_functions() {
         /*
@@ -138,6 +138,53 @@ mod tests {
 
         vm.add_native("print", print_native, 1);
         vm.exec(&builder.build(), true);
+    }
+
+    #[test]
+    fn tuple() {
+        let mut builder = IrBuilder::new();
+
+        let members = vec![
+            builder.number(11.0),
+            builder.number(22.0),
+            builder.number(33.0),
+        ];
+
+        let tuple = builder.tuple(members);
+        builder.bind(Binding::global("tuple"), tuple.clone());
+
+        let var = builder.var(Binding::global("tuple"));
+        builder.bind(
+            Binding::global("value"),
+            builder.get_element(var.clone(), builder.number(0.0)),
+        );
+
+        let callee = builder.var(Binding::global("print"));
+        let call = builder.call(callee, vec![builder.var(Binding::global("value"))], None);
+        builder.emit(call);
+
+        builder.emit(builder.set_element(var.clone(), builder.number(0.0), builder.number(18.0)));
+        builder.bind(
+            Binding::global("value"),
+            builder.get_element(var, builder.number(0.0)),
+        );
+
+        let callee = builder.var(Binding::global("print"));
+        let call = builder.call(callee, vec![builder.var(Binding::global("tuple"))], None);
+        builder.emit(call);
+
+        let mut vm = VM::new();
+        vm.add_native("print", print_native, 1);
+        vm.exec(&builder.build(), true);
+        let a = vm.globals
+            .get("tuple")
+            .unwrap()
+            .as_object()
+            .unwrap();
+        let a = unsafe {
+                a.get_unchecked()
+        };
+        println!("A: {:#?}", a)
     }
 
     #[test]

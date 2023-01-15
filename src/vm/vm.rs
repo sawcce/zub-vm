@@ -3,11 +3,9 @@ use std::fs::File;
 
 use fnv::FnvBuildHasher;
 
+use super::*;
 use flame as f;
 use flamer::flame;
-use super::*;
-use super::compiler::CompileState;
-
 
 use std::mem;
 
@@ -167,7 +165,7 @@ impl VM {
             let inst = self.read_byte();
             decode_op!(inst, self)
         }
-        
+
         self.pop()
     }
 
@@ -183,7 +181,7 @@ impl VM {
         for arg in &args {
             self.push(arg.clone());
         }
-        
+
         let last = self.stack.len();
 
         let frame_start = if last < args.len() as usize {
@@ -193,7 +191,6 @@ impl VM {
         };
 
         let frame = CallFrame::new(handle, frame_start);
-
 
         self.frames.push(frame);
 
@@ -262,7 +259,11 @@ impl VM {
     fn call(&mut self, arity: u8) {
         let last = self.stack.len();
 
-        let frame_start = if last < arity as usize { 0 } else { last - (arity + 1) as usize };
+        let frame_start = if last < arity as usize {
+            0
+        } else {
+            last - (arity + 1) as usize
+        };
 
         let callee = self.stack[frame_start].decode();
 
@@ -270,7 +271,7 @@ impl VM {
             use self::Object::*;
 
             let value = { unsafe { self.heap.get_unchecked(handle) } };
-            
+
             if let Closure(_) = value {
                 self.call_closure(handle, arity);
             } else if let NativeFunction(ref native) = value {
@@ -456,13 +457,14 @@ impl VM {
 
     #[flame]
     fn get_global(&mut self) {
-        let global = self.frame_mut()
+        let global = self
+            .frame_mut()
             .read_constant()
             .as_object()
             .map(|o| self.deref(o))
             .and_then(|o| o.as_string())
             .expect("`GetGlobal` requires a string identifier");
-        
+
         if let Some(value) = self.globals.get(global).cloned() {
             self.push(value)
         } else {
@@ -472,13 +474,15 @@ impl VM {
 
     #[flame]
     fn define_global(&mut self) {
-        let var = self.frame_mut().read_constant()
+        let var = self
+            .frame_mut()
+            .read_constant()
             .as_object()
             .map(|o| self.deref(o))
             .and_then(|o| o.as_string())
             .cloned()
             .expect("expected constant to be a string value");
-        
+
         let lhs = self.stack.pop().unwrap();
 
         self.globals.insert(var, lhs);
@@ -564,6 +568,20 @@ impl VM {
     }
 
     #[flame]
+    fn tuple(&mut self) {
+        let element_count = self.read_byte();
+        let mut elements = Vec::new();
+
+        for _ in 0..element_count {
+            elements.push(self.pop())
+        }
+
+        let value = self.allocate(Object::Tuple(Tuple::new(elements)));
+
+        self.push(value.into())
+    }
+
+    #[flame]
     fn list(&mut self) {
         let element_count = self.read_byte();
 
@@ -610,7 +628,7 @@ impl VM {
             Nil => HashVariant::Nil,
         };
 
-        let list_object = self.heap.get_mut_unchecked(list.as_object().unwrap());
+        let list_object = self.deref_mut(list.as_object().unwrap());
 
         if let Object::List(list) = list_object {
             let idx = if let Variant::Float(ref index) = index.decode() {
@@ -620,6 +638,26 @@ impl VM {
             };
 
             list.set(idx as usize, value);
+
+            return;
+        }
+
+        if let Object::Tuple(members) = list_object {
+            let idx = if let Variant::Float(ref index) = index.decode() {
+                *index as usize
+            } else {
+                panic!("Can't index list with non-number")
+            };
+
+            members.set(idx, value);
+
+            /*let a = unsafe {  a.get_mut_unchecked() };
+
+            println!("Modifiy {members:?} {idx} {value:?}");
+            members.set(idx, value);
+            println!("Modifiy {members:?} {idx} {value:?}");
+
+            *a= Object::String("sdfsdf".into()); */
 
             return;
         }
@@ -639,6 +677,21 @@ impl VM {
         let list_handle = list.as_object().unwrap();
 
         let list = self.deref(list_handle);
+
+        if let Some(tuple) = list.as_tuple().clone() {
+            let idx = if let Variant::Float(ref index) = index.decode() {
+                *index as usize
+            } else {
+                panic!("Can't index tuple with non-number")
+            };
+
+            println!("{tuple:?}");
+            let member = tuple.get(idx);
+
+            self.push(*member);
+
+            return;
+        }
 
         if let Some(list) = list.as_list() {
             let idx = if let Variant::Float(ref index) = index.decode() {
