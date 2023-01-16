@@ -650,15 +650,6 @@ impl VM {
             };
 
             members.set(idx, value);
-
-            /*let a = unsafe {  a.get_mut_unchecked() };
-
-            println!("Modifiy {members:?} {idx} {value:?}");
-            members.set(idx, value);
-            println!("Modifiy {members:?} {idx} {value:?}");
-
-            *a= Object::String("sdfsdf".into()); */
-
             return;
         }
 

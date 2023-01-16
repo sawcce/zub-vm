@@ -19,11 +19,10 @@ impl IrBuilder {
     }
 
     pub fn bind(&mut self, binding: Binding, rhs: ExprNode) {
-        let a = self.types
+        let map = self.types
             .get_mut(binding.clone().depth.unwrap_or(0) + binding.function_depth)
             .unwrap();
-        a.insert(binding.name().into(), rhs.type_info().clone());
-        println!("A: {a:?}");
+        map.insert(binding.name().into(), rhs.type_info().clone());
 
         let bind = Expr::Bind(binding.clone(), rhs);
         self.emit(bind.node(TypeInfo::nil()));
