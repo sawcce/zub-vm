@@ -1,6 +1,6 @@
 use super::*;
-use gc::trace::{ Trace, Tracer };
 use colored::Colorize;
+use gc::trace::{Trace, Tracer};
 
 pub struct Disassembler<'c> {
     offset: usize,
@@ -52,24 +52,57 @@ impl<'c> Disassembler<'c> {
         eprint!("CONSTANT\t{}\t{:?}", idx, val);
     }
 
-    fn ret(&self) { eprint!("RETURN"); }
-    fn print(&self) { eprint!("PRINT"); }
-    fn add(&self) { eprint!("ADD"); }
-    fn sub(&self) { eprint!("SUB"); }
-    fn mul(&self) { eprint!("MUL"); }
-    fn rem(&self) { eprint!("REM"); }
-    fn pow(&self) { eprint!("POW"); }
-    fn div(&self) { eprint!("DIV"); }
-    fn neg(&self) { eprint!("NEG"); }
-    fn not(&self) { eprint!("NOT"); }
-    fn eq(&self) { eprint!("EQ"); }
-    fn gt(&self) { eprint!("GT"); }
-    fn lt(&self) { eprint!("LT"); }
-    fn pop(&self) { eprint!("POP"); }
+    fn ret(&self) {
+        eprint!("RETURN");
+    }
+    fn print(&self) {
+        eprint!("PRINT");
+    }
+    fn add(&self) {
+        eprint!("ADD");
+    }
+    fn sub(&self) {
+        eprint!("SUB");
+    }
+    fn mul(&self) {
+        eprint!("MUL");
+    }
+    fn rem(&self) {
+        eprint!("REM");
+    }
+    fn pow(&self) {
+        eprint!("POW");
+    }
+    fn div(&self) {
+        eprint!("DIV");
+    }
+    fn neg(&self) {
+        eprint!("NEG");
+    }
+    fn not(&self) {
+        eprint!("NOT");
+    }
+    fn eq(&self) {
+        eprint!("EQ");
+    }
+    fn gt(&self) {
+        eprint!("GT");
+    }
+    fn lt(&self) {
+        eprint!("LT");
+    }
+    fn pop(&self) {
+        eprint!("POP");
+    }
 
     fn list(&mut self) {
         eprint!("LIST");
         self.read_byte();
+    }
+
+    fn tuple(&mut self) {
+        let size = self.read_byte();
+        eprint!("TUPLE\t{}", size);
     }
 
     fn get_element(&mut self) {
@@ -84,7 +117,6 @@ impl<'c> Disassembler<'c> {
     fn set_element(&mut self) {
         eprint!("SET_ELEMENT")
     }
-
 
     fn jmp(&mut self) {
         let offset = self.offset - 1;
@@ -138,14 +170,14 @@ impl<'c> Disassembler<'c> {
         let b6 = self.chunk.get(self.offset - 3) as u64;
         let b7 = self.chunk.get(self.offset - 2) as u64;
         let b8 = self.chunk.get(self.offset - 1) as u64;
-        let raw = b1   +
-            (b2 << 8)  +
-            (b3 << 16) +
-            (b4 << 24) +
-            (b5 << 32) +
-            (b6 << 40) +
-            (b7 << 48) +
-            (b8 << 56);
+        let raw = b1
+            + (b2 << 8)
+            + (b3 << 16)
+            + (b4 << 24)
+            + (b5 << 32)
+            + (b6 << 40)
+            + (b7 << 48)
+            + (b8 << 56);
         let val = unsafe { Value::from_raw(raw) };
         eprint!("FLOAT\t{}", val.with_heap(self.heap));
     }
@@ -168,7 +200,10 @@ impl<'c> Disassembler<'c> {
 
     fn invoke(&mut self, arity: u8) {
         let idx = self.read_byte();
-        let val = self.chunk.get_constant(idx).expect("invalid constant segment index");
+        let val = self
+            .chunk
+            .get_constant(idx)
+            .expect("invalid constant segment index");
         eprint!("INVOKE_{} {}", arity, val.with_heap(&self.heap));
     }
 
@@ -188,6 +223,7 @@ impl<'c> Disassembler<'c> {
 
     fn closure(&mut self) {
         let val = self.read_constant();
+        println!("{:?}", unsafe { val.as_object().unwrap().get_unchecked() });
         let count = val
             .as_object()
             .and_then(|o| self.heap.get(o))
@@ -214,20 +250,34 @@ impl<'c> Disassembler<'c> {
     }
 
     fn class(&mut self, idx: u8) {
-        let val = self.chunk.get_constant(idx).expect("invalid constant segment index");
+        let val = self
+            .chunk
+            .get_constant(idx)
+            .expect("invalid constant segment index");
         let methods = self.read_byte();
-        eprint!("CLASS\t{}\t{}\t({} method(s))", idx, val.with_heap(&self.heap), methods);
+        eprint!(
+            "CLASS\t{}\t{}\t({} method(s))",
+            idx,
+            val.with_heap(&self.heap),
+            methods
+        );
     }
 
     fn get_property(&mut self) {
         let idx = self.read_byte();
-        let val = self.chunk.get_constant(idx).expect("invalid constant segment index");
+        let val = self
+            .chunk
+            .get_constant(idx)
+            .expect("invalid constant segment index");
         eprint!("GET_PROPERTY\t{}\t{}", idx, val.with_heap(&self.heap));
     }
 
     fn set_property(&mut self) {
         let idx = self.read_byte();
-        let val = self.chunk.get_constant(idx).expect("invalid constant segment index");
+        let val = self
+            .chunk
+            .get_constant(idx)
+            .expect("invalid constant segment index");
         eprint!("SET_PROPERTY\t{}\t{}", idx, val.with_heap(&self.heap));
     }
 
@@ -245,6 +295,9 @@ impl<'c> Disassembler<'c> {
 
     fn read_constant(&mut self) -> Value {
         let idx = self.read_byte();
-        *self.chunk.get_constant(idx).expect("invalid constant segment index")
+        *self
+            .chunk
+            .get_constant(idx)
+            .expect("invalid constant segment index")
     }
 }

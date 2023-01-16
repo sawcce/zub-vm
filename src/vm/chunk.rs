@@ -229,6 +229,7 @@ pub enum Op {
     CloseUpValue,
 
     List,
+    Tuple,
     Dict,
     GetElement,
     SetElement,
@@ -276,6 +277,7 @@ impl Op {
             SetElement => buf.push(0x29),
             GetElement => buf.push(0x30),
             Pow => buf.push(0x31),
+            Tuple => buf.push(0x36),
         }
     }
 }
@@ -321,6 +323,7 @@ macro_rules! decode_op {
             0x29 => $this.set_element(),
             0x30 => $this.get_element(),
             0x31 => $this.pow(),
+            0x36 => $this.tuple(),
             _ => {
                 panic!("Unknown op {}", $op);
             }

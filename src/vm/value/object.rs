@@ -20,6 +20,44 @@ macro_rules! impl_as (
     }
 );
 
+#[derive(Clone)]
+pub struct Tuple {
+    pub inner: Box<[Value]>,
+}
+
+impl Tuple {
+    pub fn new(data: Vec<Value>) -> Self {
+        Self {
+            inner: data.into_boxed_slice(),
+        }
+    }
+
+    pub fn get(&self, index: usize) -> &Value {
+        self.inner.get(index).unwrap()
+    }
+
+    pub fn set(&mut self, index: usize, value: Value) {
+        self.inner[index] = value;
+    }
+}
+
+impl std::fmt::Debug for Tuple {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "tuple<")?;
+        for i in self.inner.iter() {
+            let v = unsafe {
+                if let Some(obj) = i.as_object() {
+                    obj.get_unchecked().fmt(f)
+                } else {
+                    i.fmt(f)
+                }
+             }?;
+             print!(",");
+        }
+        write!(f, ">")
+    }
+}
+
 pub enum Object {
     String(String),
     Function(Function),
@@ -27,6 +65,7 @@ pub enum Object {
     Closure(Closure),
     List(List),
     Dict(Dict),
+    Tuple(Tuple),
 }
 
 impl Object {
@@ -35,12 +74,9 @@ impl Object {
     impl_as!(as_function, Function);
     impl_as!(as_list, List);
     impl_as!(as_dict, Dict);
+    impl_as!(as_tuple, Tuple);
 
-    pub fn native_fn(
-        name: &str,
-        arity: u8,
-        function: NativeFunctionType,
-    ) -> Self {
+    pub fn native_fn(name: &str, arity: u8, function: NativeFunctionType) -> Self {
         Object::NativeFunction(NativeFunction {
             name: name.into(),
             arity,
@@ -62,6 +98,7 @@ impl Trace<Self> for Object {
         use self::Object::*;
 
         match self {
+            Tuple(..) => {}
             String(_) => {}
             Function(f) => f.trace(tracer),
             NativeFunction(_) => {}
@@ -83,6 +120,7 @@ impl Debug for Object {
             Closure(ref cl) => write!(f, "<closure {:?}>", cl.function),
             List(ref ls) => write!(f, "<list [{:?}]>", ls.content.len()),
             Dict(ref dict) => write!(f, "<dict [{:?}]>", dict.content.len()),
+            Tuple(t) => write!(f, "{t:?}"),
         }
     }
 }
@@ -98,6 +136,7 @@ impl<'h, 'a> Display for WithHeap<'h, &'a Object> {
             Closure(ref cl) => write!(f, "<fn {}>", cl.function.name),
             List(ref ls) => write!(f, "<list [{}]>", ls.content.len()),
             Dict(ref ls) => write!(f, "<dict [{}]>", ls.content.len()),
+            Tuple(t) => write!(f, "{t:?}"),
         }
     }
 }

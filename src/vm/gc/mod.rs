@@ -202,7 +202,7 @@ impl<T> Drop for Heap<T> {
 #[derive(Debug)]
 pub struct Handle<T> {
     gen: Generation,
-    ptr: *mut T,
+    pub ptr: *mut T,
 }
 
 impl<T> Handle<T> {

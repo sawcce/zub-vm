@@ -1,4 +1,4 @@
-use super::chunk::{ Chunk, Op };
+use super::chunk::{Chunk, Op};
 use super::*;
 
 #[derive(Debug, Clone)]
@@ -27,15 +27,18 @@ pub struct CompileState {
 }
 
 impl CompileState {
-    pub fn new(method: bool, reserved: &str, function: FunctionBuilder, scope_depth: usize) -> Self {
-        let locals = vec![
-            Local {
-                name: reserved.into(),
-                depth: 1,
-                captured: false,
-                reserved: true
-            }
-        ];
+    pub fn new(
+        method: bool,
+        reserved: &str,
+        function: FunctionBuilder,
+        scope_depth: usize,
+    ) -> Self {
+        let locals = vec![Local {
+            name: reserved.into(),
+            depth: 1,
+            captured: false,
+            reserved: true,
+        }];
 
         CompileState {
             line: 0,
@@ -53,7 +56,7 @@ impl CompileState {
             if local.name == var {
                 local.captured = true;
 
-                return Some(i as u8)
+                return Some(i as u8);
             }
         }
 
@@ -67,14 +70,12 @@ impl CompileState {
             panic!("local variable overflow")
         }
 
-        self.locals.push(
-            Local {
-                name: var.into(),
-                depth,
-                captured: false,
-                reserved: false,
-            }
-        );
+        self.locals.push(Local {
+            name: var.into(),
+            depth,
+            captured: false,
+            reserved: false,
+        });
 
         (self.locals.len() - 1) as u8
     }
@@ -82,7 +83,7 @@ impl CompileState {
     fn resolve_local(&mut self, var: &str) -> u8 {
         for (i, local) in self.locals.iter().enumerate().rev() {
             if local.name == var {
-                return i as u8
+                return i as u8;
             }
         }
 
@@ -92,19 +93,14 @@ impl CompileState {
     fn add_upvalue(&mut self, index: u8, is_local: bool) -> u8 {
         for (i, upval) in self.upvalues.iter().enumerate() {
             if upval.index == index && upval.is_local == is_local {
-                return i as u8
+                return i as u8;
             }
         }
 
         if self.upvalues.len() == std::u8::MAX as usize {
             panic!("too many upvalues, not cool")
         } else {
-            self.upvalues.push(
-                UpValue {
-                    index,
-                    is_local
-                }
-            );
+            self.upvalues.push(UpValue { index, is_local });
 
             (self.upvalues.len() - 1) as u8
         }
@@ -123,7 +119,7 @@ impl CompileState {
 
         self.locals.retain(|local| {
             if local.depth < last || local.reserved {
-                return true
+                return true;
             }
 
             if local.captured {
@@ -153,7 +149,6 @@ impl CompileState {
         bs
     }
 }
-
 
 pub struct Compiler<'g> {
     heap: &'g mut Heap<Object>,
@@ -205,9 +200,9 @@ impl<'g> Compiler<'g> {
 
                 match op {
                     Neg => self.emit(Op::Neg),
-                    Not => self.emit(Op::Not)
+                    Not => self.emit(Op::Not),
                 }
-            },
+            }
 
             Var(ref var) => self.var_get(var),
             Mutate(ref lhs, ref rhs) => {
@@ -221,7 +216,8 @@ impl<'g> Compiler<'g> {
                         self.emit(Op::SetUpValue);
                         self.emit_byte(idx)
                     } else {
-                        if var.depth.is_none() { // Global
+                        if var.depth.is_none() {
+                            // Global
                             self.set_global(var.name())
                         } else {
                             let idx = self.state_mut().resolve_local(var.name());
@@ -234,14 +230,28 @@ impl<'g> Compiler<'g> {
                     // When classes are a thing, this is where we handle setting properties
                     panic!("can't mutate non-variable")
                 }
-            },
+            }
 
             Return(val) => self.emit_return((*val).clone()),
 
             Function(ref ir_func) => {
+                let idx = if let Some(depth) = ir_func.var.depth {
+                    self.state_mut().add_local(ir_func.var.name(), depth);
+                    self.state_mut().resolve_local(ir_func.var.name());
+                    None
+                } else {
+                    self.emit(Op::DefineGlobal);
+                    let idx = self.string_constant(ir_func.var.name());
+                    Some(idx)
+                };
+
                 self.function_decl(ir_func);
-                self.var_define(&ir_func.var, None);
-            },
+                /* self.var_define(&ir_func.var, None); */
+
+                if let Some(idx) = idx {
+                    self.emit_byte(idx)
+                }
+            }
 
             AnonFunction(ref ir_func) => {
                 self.function_decl(ir_func);
@@ -271,7 +281,7 @@ impl<'g> Compiler<'g> {
                 }
 
                 self.emit(Op::Call(arity as u8))
-            },
+            }
 
             List(ref content) => {
                 for el in content.iter().rev() {
@@ -280,7 +290,7 @@ impl<'g> Compiler<'g> {
 
                 self.emit(Op::List);
                 self.emit_byte(content.len() as u8)
-            },
+            }
 
             SetElement(ref list, ref index, ref value) => {
                 self.compile_expr(value);
@@ -288,14 +298,14 @@ impl<'g> Compiler<'g> {
                 self.compile_expr(list);
 
                 self.emit(Op::SetElement);
-            },
+            }
 
             GetElement(ref list, ref index) => {
                 self.compile_expr(index);
                 self.compile_expr(list);
 
                 self.emit(Op::GetElement);
-            },
+            }
 
             Dict(keys, values) => {
                 for (key, val) in keys.iter().zip(values.iter()) {
@@ -305,7 +315,7 @@ impl<'g> Compiler<'g> {
 
                 self.emit(Op::Dict);
                 self.emit_byte(keys.len() as u8);
-            },
+            }
 
             If(ref cond, ref then, ref els) => {
                 self.compile_expr(cond);
@@ -325,7 +335,7 @@ impl<'g> Compiler<'g> {
                 }
 
                 self.patch_jmp(end_jmp)
-            },
+            }
 
             While(ref cond, ref body) => {
                 let ip = self.ip();
@@ -345,16 +355,14 @@ impl<'g> Compiler<'g> {
                 for b in self.state_mut().breaks() {
                     self.patch_jmp(b)
                 }
-            },
+            }
 
             Break => {
                 let jmp = self.emit_jmp();
                 self.state_mut().add_break(jmp)
-            },
-
-            Pop => {
-                self.emit(Op::Pop)
             }
+
+            Pop => self.emit(Op::Pop),
 
             Binary(lhs, op, rhs) => {
                 use self::BinaryOp::*;
@@ -369,7 +377,7 @@ impl<'g> Compiler<'g> {
                         self.compile_expr(rhs);
 
                         self.patch_jmp(short_circuit_jmp);
-                    },
+                    }
 
                     Or => {
                         self.compile_expr(lhs);
@@ -383,7 +391,7 @@ impl<'g> Compiler<'g> {
                         self.compile_expr(rhs);
 
                         self.patch_jmp(end_jmp)
-                    },
+                    }
 
                     _ => {
                         // This looks kinda funny, but it's an ok way of matching I guess
@@ -406,43 +414,52 @@ impl<'g> Compiler<'g> {
                             GtEqual => {
                                 self.emit(Op::Less);
                                 self.emit(Op::Not)
-                            },
+                            }
 
                             LtEqual => {
                                 self.emit(Op::Greater);
                                 self.emit(Op::Not)
-                            },
+                            }
 
                             NEqual => {
                                 self.emit(Op::Equal);
                                 self.emit(Op::Not)
-                            },
+                            }
 
                             _ => {}
                         }
                     }
                 }
-            },
+            }
 
             Bind(ref var, ref init) => {
                 self.compile_expr(init);
                 self.var_define(var, None);
-            },
+            }
 
             BindGlobal(ref var, ref init) => {
                 self.compile_expr(init);
                 self.var_define(var, None)
-            },
+            }
 
-            Block(ref body) => for node in body {
-                self.compile_expr(node)
-            },
+            Block(ref body) => {
+                for node in body {
+                    self.compile_expr(node)
+                }
+            }
 
-            _ => todo!()
+            Tuple(ref members) => {
+                for member in members.iter().rev() {
+                    self.compile_expr(member);
+                }
+
+                self.emit(Op::Tuple);
+                self.emit_byte(members.len() as u8);
+            }
+            
+            _ => todo!(),
         }
     }
-
-
 
     fn var_get(&mut self, var: &Binding) {
         if var.is_upvalue() {
@@ -473,9 +490,7 @@ impl<'g> Compiler<'g> {
         } else {
             self.emit(Op::DefineGlobal);
 
-            let idx = constant.unwrap_or_else(|| {
-                self.string_constant(var.name())
-            });
+            let idx = constant.unwrap_or_else(|| self.string_constant(var.name()));
 
             self.emit_byte(idx)
         }
@@ -485,10 +500,7 @@ impl<'g> Compiler<'g> {
         self.emit(Op::SetGlobal);
 
         let idx = {
-            let chunk = self.states.last_mut()
-                .unwrap()
-                .function
-                .chunk_mut();
+            let chunk = self.states.last_mut().unwrap().function.chunk_mut();
 
             chunk.string_constant(self.heap, name)
         };
@@ -527,17 +539,11 @@ impl<'g> Compiler<'g> {
         self.emit(Op::Closure);
 
         for upvalue in upvalues {
-            self.emit_byte(
-                if upvalue.is_local {
-                    1
-                } else {
-                    0
-                }
-            );
+            self.emit_byte(if upvalue.is_local { 1 } else { 0 });
 
             self.emit_byte(upvalue.index)
         }
-        
+
         let idx = self.chunk_mut().add_constant(value);
         self.emit_byte(idx);
     }
@@ -564,16 +570,16 @@ impl<'g> Compiler<'g> {
     fn resolve_upvalue(&mut self, name: &str) -> u8 {
         let end = self.states.len() - 1;
 
-        let (scope, mut index) =
-            self.states[..end].iter_mut()
-                .enumerate()
-                .rev()
-                .filter_map(|(i, enclosing)| {
-                    enclosing.capture_local(name).map(|local| (i, local))
-                })
-                .next()
-                .expect(&format!("upvalue marked during resolution, but wasn't found: {}", name));
-
+        let (scope, mut index) = self.states[..end]
+            .iter_mut()
+            .enumerate()
+            .rev()
+            .filter_map(|(i, enclosing)| enclosing.capture_local(name).map(|local| (i, local)))
+            .next()
+            .expect(&format!(
+                "upvalue marked during resolution, but wasn't found: {}",
+                name
+            ));
 
         index = self.states[scope + 1].add_upvalue(index, true);
 
@@ -610,23 +616,24 @@ impl<'g> Compiler<'g> {
     }
 
     fn chunk_mut(&mut self) -> &mut Chunk {
-        self.states.last_mut()
+        self.states
+            .last_mut()
             .expect("states to be non-empty")
             .function
             .chunk_mut()
     }
 
     fn chunk(&self) -> &Chunk {
-        &self.states.last()
+        &self
+            .states
+            .last()
             .expect("states to be non-empty")
             .function
             .chunk
     }
 
     fn line(&mut self) -> usize {
-        self.states.last_mut()
-            .expect("states to be non-empty")
-            .line
+        self.states.last_mut().expect("states to be non-empty").line
     }
 
     fn string_constant(&mut self, s: &str) -> u8 {
@@ -648,8 +655,8 @@ impl<'g> Compiler<'g> {
         use self::Literal::*;
 
         match *lit {
-            Nil     => self.emit(Op::Nil),
-            Boolean(b) => self.emit(if b { Op::True} else { Op::False } ),
+            Nil => self.emit(Op::Nil),
+            Boolean(b) => self.emit(if b { Op::True } else { Op::False }),
             Number(n) => self.emit_number_literal(n),
             String(ref s) => {
                 let idx = {
@@ -658,9 +665,9 @@ impl<'g> Compiler<'g> {
                 };
 
                 self.emit(Op::Constant(idx))
-            },
+            }
 
-            _ => panic!("not a constant")
+            _ => panic!("not a constant"),
         }
     }
 
