@@ -188,6 +188,58 @@ mod tests {
     }
 
     #[test]
+    fn structure() {
+        let mut builder = IrBuilder::new();
+
+        let members = vec![
+            builder.string("Sawcce"),
+            builder.number(16.0),
+        ];
+
+        let keys = vec![
+            "name".into(),
+            "age".into(),
+        ];
+
+        let structure = builder.structure(keys, members);
+        builder.bind(Binding::global("struct"), structure.clone());
+        let var = builder.var(Binding::global("struct"));
+
+        builder.bind(
+            Binding::global("value"),
+            builder.get_member("name".into(), var.clone()),
+        );
+
+        let callee = builder.var(Binding::global("print"));
+        let call = builder.call(callee.clone(), vec![builder.var(Binding::global("value"))], None);
+        builder.emit(call);
+
+        let b = builder.set_member("name".into(), var.clone(), builder.string("Hello, world!"));
+        builder.emit(b);
+
+        builder.bind(
+            Binding::global("value"),
+            builder.get_member("name".into(), var),
+        );
+        
+        let call = builder.call(callee, vec![builder.var(Binding::global("value"))], None);
+        builder.emit(call);
+
+        let mut vm = VM::new();
+        vm.add_native("print", print_native, 1);
+        vm.exec(&builder.build(), true);
+        let a = vm.globals
+            .get("struct")
+            .unwrap()
+            .as_object()
+            .unwrap();
+        let a = unsafe {
+                a.get_unchecked()
+        };
+        println!("A: {:#?}", a)
+    }
+
+    #[test]
     fn list() {
         let mut builder = IrBuilder::new();
 

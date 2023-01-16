@@ -1,10 +1,9 @@
 use super::super::gc::{tag::*, trace::*, *};
 use super::*;
 
-use std::cell::{RefCell};
+use std::cell::RefCell;
 use std::fmt::{Debug, Display};
 use std::rc::Rc;
-
 
 use im_rc::hashmap::HashMap;
 
@@ -23,38 +22,37 @@ macro_rules! impl_as (
 
 #[derive(Clone)]
 pub struct Tuple {
-    pub len: usize,
-    pub inner: *mut Value,
+    pub inner: Box<[Value]>,
 }
 
 impl Tuple {
-    pub fn new(mut data: Vec<Value>) -> Self {
+    pub fn new(data: Vec<Value>) -> Self {
         Self {
-            len: data.len(),
-            inner: data.as_mut_ptr(),
+            inner: data.into_boxed_slice(),
         }
     }
 
     pub fn get(&self, index: usize) -> &Value {
-        let a = unsafe { self.inner.add(index) };
-        unsafe { a.as_ref().unwrap() }
+        self.inner.get(index).unwrap()
     }
 
     pub fn set(&mut self, index: usize, value: Value) {
-        unsafe {
-            let a = self.inner.add(index);
-            println!("Set: {:?}", *a);
-            *a = value.clone();
-            println!("Set: {:?}", *a);
-        };
+        self.inner[index] = value;
     }
 }
 
 impl std::fmt::Debug for Tuple {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "tuple<")?;
-        for i in 0..self.len {
-            write!(f, "{:?}, ", self.get(i))?;
+        for i in self.inner.iter() {
+            let v = unsafe {
+                if let Some(obj) = i.as_object() {
+                    obj.get_unchecked().fmt(f)
+                } else {
+                    i.fmt(f)
+                }
+             }?;
+             print!(",");
         }
         write!(f, ">")
     }

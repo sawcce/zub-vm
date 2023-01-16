@@ -186,6 +186,7 @@ pub enum Expr {
 
     List(Vec<ExprNode>),
     Tuple(Vec<ExprNode>),
+    Structure(Vec<String>, Vec<ExprNode>),
     Dict(Vec<ExprNode>, Vec<ExprNode>), // They need to be the same size, funny enough
     SetElement(ExprNode, ExprNode, ExprNode),
     GetElement(ExprNode, ExprNode),

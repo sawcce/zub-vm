@@ -1,24 +1,41 @@
 use super::*;
 
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 #[derive(Clone, Debug)]
 pub struct IrBuilder {
     program: Vec<ExprNode>,
+    types: Vec<HashMap<String, TypeInfo>>,
 }
 
 impl IrBuilder {
     pub fn new() -> Self {
         IrBuilder {
             program: Vec::new(),
+            types: vec![HashMap::new()],
         }
     }
 
     pub fn bind(&mut self, binding: Binding, rhs: ExprNode) {
-        let bind = Expr::Bind(binding, rhs);
+        let a = self.types
+            .get_mut(binding.clone().depth.unwrap_or(0) + binding.function_depth)
+            .unwrap();
+        a.insert(binding.name().into(), rhs.type_info().clone());
+        println!("A: {a:?}");
 
+        let bind = Expr::Bind(binding.clone(), rhs);
         self.emit(bind.node(TypeInfo::nil()));
+    }
+    
+
+    pub fn scope_in(&mut self) {
+        self.types.push(HashMap::new());
+    }
+
+    pub fn scope_out(&mut self) {
+        self.types.pop();
     }
 
     pub fn mutate(&mut self, lhs: ExprNode, rhs: ExprNode) {
@@ -62,6 +79,34 @@ impl IrBuilder {
         Expr::Tuple(members).node(TypeInfo::nil())
     }
 
+    pub fn structure(&self, keys: Vec<String>, values: Vec<ExprNode>) -> ExprNode {
+        Expr::Tuple(values).node(TypeInfo::structure(keys))
+    }
+
+    pub fn get_member(&self, key: String, structure: ExprNode) -> ExprNode {
+        use types::Type::Struct;
+
+        if let Some(Struct(ref keys)) = structure.type_info().kind() {
+            let index = keys.iter().position(|e| e == &key).unwrap();
+            let index = self.number(index as f64);
+            Expr::GetElement(structure, index).node(TypeInfo::nil())
+        } else {
+            panic!("Expected struct!");
+        }
+    }
+
+    pub fn set_member(&self, key: String, structure: ExprNode, value: ExprNode) -> ExprNode {
+        use types::Type::Struct;
+
+        if let Some(Struct(ref keys)) = structure.type_info().kind() {
+            let index = keys.iter().position(|e| e == &key).unwrap();
+            let index = self.number(index as f64);
+            Expr::SetElement(structure, index, value).node(TypeInfo::nil())
+        } else {
+            panic!("Expected struct!");
+        }
+    }
+
     pub fn dict(&self, keys: Vec<ExprNode>, values: Vec<ExprNode>) -> ExprNode {
         Expr::Dict(keys, values).node(TypeInfo::nil())
     }
@@ -71,7 +116,8 @@ impl IrBuilder {
     }
 
     pub fn var(&self, binding: Binding) -> ExprNode {
-        Expr::Var(binding).node(TypeInfo::nil())
+        let a = self.types.last().unwrap().get(binding.name()).unwrap_or(&TypeInfo::nil()).clone();
+        Expr::Var(binding).node(a)
     }
 
     pub fn call(&self, callee: ExprNode, args: Vec<ExprNode>, retty: Option<TypeInfo>) -> ExprNode {
@@ -137,7 +183,9 @@ impl IrBuilder {
 
         body_build(&mut body_builder);
 
+        self.scope_in();
         let body = body_builder.build();
+        self.scope_out();
 
         let func_body = IrFunctionBody {
             params: params
