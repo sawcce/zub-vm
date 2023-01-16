@@ -456,14 +456,7 @@ impl<'g> Compiler<'g> {
                 self.emit(Op::Tuple);
                 self.emit_byte(members.len() as u8);
             }
-
-            Structure(keys, values) => {
-                for member in values.iter().rev() {
-                    self.compile_expr(member);
-                }
-
-                self.emit(Op::Tuple);
-            }
+            
             _ => todo!(),
         }
     }
