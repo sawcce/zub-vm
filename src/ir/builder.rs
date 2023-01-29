@@ -2,7 +2,57 @@ use super::*;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::convert::TryInto;
 use std::rc::Rc;
+
+pub trait Generate {
+    fn generate(&self, context: &mut IrBuilder) -> ExprNode;
+}
+
+pub enum Variable<'v> {
+    Definition {
+        name: String,
+        value: Box<&'v dyn Generate>,
+    },
+    Reference {
+        name: String,
+    },
+}
+
+impl<'v> Variable<'v> {
+    pub fn bind(name: impl ToString, value: &'v dyn Generate) -> Self {
+        Self::Definition {
+            name: name.to_string(),
+            value: Box::new(value),
+        }
+    }
+}
+
+impl<'v> Generate for Variable<'v> {
+    fn generate(&self, context: &mut IrBuilder) -> ExprNode {
+        match self {
+            Variable::Definition { name, value } => {
+                Expr::Bind(Binding::global(name), value.generate(context)).node(TypeInfo::nil())
+            }
+            Variable::Reference { name } => Expr::Var(Binding::global(name)).node(TypeInfo::nil()),
+        }
+    }
+}
+
+impl<'a, T> Generate for T
+where
+    f64: From<T>,
+    T: Clone + Copy,
+{
+    fn generate(&self, _: &mut IrBuilder) -> ExprNode {
+        let info = TypeInfo::new(Type::Float);
+        let val = self.clone().clone();
+        let val = Into::<f64>::into(val);
+        let lit = Literal::Number(val);
+
+        Expr::Literal(lit).node(info)
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct IrBuilder {
@@ -18,8 +68,14 @@ impl IrBuilder {
         }
     }
 
+    pub fn resolve_var_binding(&mut self, name: String) -> Binding {
+        let depth = self.types
+        MutexGuard
+    }
+
     pub fn bind(&mut self, binding: Binding, rhs: ExprNode) {
-        let map = self.types
+        let map = self
+            .types
             .get_mut(binding.clone().depth.unwrap_or(0) + binding.function_depth)
             .unwrap();
         map.insert(binding.name().into(), rhs.type_info().clone());
@@ -27,7 +83,6 @@ impl IrBuilder {
         let bind = Expr::Bind(binding.clone(), rhs);
         self.emit(bind.node(TypeInfo::nil()));
     }
-    
 
     pub fn scope_in(&mut self) {
         self.types.push(HashMap::new());
@@ -115,7 +170,13 @@ impl IrBuilder {
     }
 
     pub fn var(&self, binding: Binding) -> ExprNode {
-        let a = self.types.last().unwrap().get(binding.name()).unwrap_or(&TypeInfo::nil()).clone();
+        let a = self
+            .types
+            .last()
+            .unwrap()
+            .get(binding.name())
+            .unwrap_or(&TypeInfo::nil())
+            .clone();
         Expr::Var(binding).node(a)
     }
 

@@ -362,4 +362,11 @@ mod tests {
         println!("{}", context.get_arg_with_heap(1));
         Value::nil()
     }
+
+    #[test]
+    fn new_api() {
+        let value = 16;
+        let var = Variable::bind("qsd", &value);
+        println!("{:?}", var.generate());
+    }
 }
