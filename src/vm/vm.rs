@@ -171,6 +171,12 @@ impl VM {
 
     fn run(&mut self) {
         while !self.frames.is_empty() {
+            if self.frame().end_reached() {
+                let ip = self.frame().ip;
+
+                panic!("Trying to read instruction at ip: {}, when code stops at index: {}", ip, ip - 1);
+            }
+
             let inst = self.read_byte();
             decode_op!(inst, self)
         }
