@@ -299,6 +299,8 @@ impl VM {
             } else {
                 self.runtime_error("bad call")
             }
+        } else {
+            self.runtime_error(&format!("Bad call, trying to call: {callee:?} when expected either a closure or a native function").to_owned());
         }
     }
 
