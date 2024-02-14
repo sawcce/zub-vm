@@ -1,6 +1,21 @@
-use std::ops::{Add, Sub, Mul, Div, Rem};
+use std::ops::{Add, Div, Mul, Rem, Sub};
 
 use super::{BinaryOp, Binding, Expr, ExprNode, IrBuilder, Literal, Type, TypeInfo};
+
+macro_rules! impl_partial_cmp {
+    ($method_name:ident, $bin_op:expr) => {
+        fn $method_name<'v>(&'v self, other: &'v dyn Generate) -> BinaryOperation
+        where
+            Self: Generate + Sized,
+        {
+            BinaryOperation {
+                lhs: Box::new(self),
+                operator: $bin_op,
+                rhs: Box::new(other),
+            }
+        }
+    };
+}
 
 pub trait Generate {
     fn generate(&self, context: &mut IrBuilder) -> ExprNode;
@@ -9,6 +24,13 @@ pub trait Generate {
         let gen = self.generate(context);
         context.program.push(gen);
     }
+
+    impl_partial_cmp!(equals, BinaryOp::Equal);
+    impl_partial_cmp!(not_equals, BinaryOp::NEqual);
+    impl_partial_cmp!(lt, BinaryOp::Lt);
+    impl_partial_cmp!(lte, BinaryOp::LtEqual);
+    impl_partial_cmp!(gt, BinaryOp::Gt);
+    impl_partial_cmp!(gte, BinaryOp::GtEqual);
 }
 
 #[derive(Clone)]
@@ -139,7 +161,6 @@ impl<'v> Generate for BinaryOperation<'v> {
         self.lhs.type_info(context)
     }
 }
-
 
 macro_rules! impl_operations {
     ($target:tt => $($imp:tt),+) => {
