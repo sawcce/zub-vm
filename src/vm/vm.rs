@@ -255,7 +255,10 @@ impl VM {
             if self.frame().end_reached() {
                 let ip = self.frame().ip;
 
-                panic!("Trying to read instruction at ip: {}, when code stops at index: {}", ip, ip - 1);
+                panic!(
+                    "Trying to read instruction at ip: {}, when code stops before",
+                    ip
+                );
             }
 
             let inst = self.read_byte();
