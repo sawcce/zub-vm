@@ -366,18 +366,20 @@ mod tests {
     }
 
     #[test]
-    fn new_api() {
+    fn pi() {
         let mut builder = IrBuilder::new();
 
         // New api
         // In the new api, nothing is generated unless specified explicitely
-        Variable::global("pi").bind(&3.141592).emit(&mut builder);
+        Variable::global("pi").bind(3.141592).emit(&mut builder);
 
         // Old api
-        // builder.bind(Binding::global("pi"), builder.number(3.141592)); 
+        // builder.bind(Binding::global("pi"), builder.number(3.141592));
 
         let mut vm = VM::new();
         vm.exec(&builder.build(), true);
+
+        println!("Globals: {:?}", vm.globals);
 
         assert_eq!(vm.globals.get("pi").unwrap().as_float(), 3.141592);
     }

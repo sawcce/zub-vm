@@ -1,4 +1,6 @@
-use super::{Binding, Expr, ExprNode, IrBuilder, Literal, Type, TypeInfo};
+use std::ops::{Add, Sub, Mul, Div, Rem};
+
+use super::{BinaryOp, Binding, Expr, ExprNode, IrBuilder, Literal, Type, TypeInfo};
 
 pub trait Generate {
     fn generate(&self, context: &mut IrBuilder) -> ExprNode;
@@ -17,7 +19,10 @@ pub struct Variable {
 
 impl Variable {
     pub fn global(name: impl ToString) -> Self {
-        Variable { name: name.to_string(), depth: None }
+        Variable {
+            name: name.to_string(),
+            depth: None,
+        }
     }
 
     pub fn local(name: impl ToString, depth: (usize, usize)) -> Self {
@@ -34,7 +39,7 @@ impl Variable {
         }
     }
 
-    pub fn bind<'v>(&self, value: &'v dyn Generate) -> Assignement<'v> {
+    pub fn bind<'v>(&self, value: impl Generate + 'v) -> Assignement<'v> {
         Assignement {
             variable: self.clone(),
             value: Box::new(value),
@@ -65,10 +70,15 @@ impl Generate for Variable {
     }
 }
 
-#[derive(Clone)]
+// To make the api nicer Assignement
+// doesn't take a reference to the value
+// this comes at the cost of not being
+// able to clone the struct, this doesn't
+// seem necessary but if you think so feel
+// free to open an issue
 pub struct Assignement<'v> {
     variable: Variable,
-    value: Box<&'v dyn Generate>,
+    value: Box<dyn Generate + 'v>,
 }
 
 impl<'v> Generate for Assignement<'v> {
@@ -87,7 +97,7 @@ impl<'v> Generate for Assignement<'v> {
         Expr::Bind(binding.clone(), self.value.generate(context)).node(TypeInfo::nil())
     }
 
-    fn type_info(&self, context: & IrBuilder) -> TypeInfo {
+    fn type_info(&self, context: &IrBuilder) -> TypeInfo {
         TypeInfo::nil()
     }
 }
@@ -110,3 +120,76 @@ where
         TypeInfo::new(Type::Float)
     }
 }
+
+pub struct BinaryOperation<'v> {
+    lhs: Box<&'v dyn Generate>,
+    rhs: Box<&'v dyn Generate>,
+    operator: BinaryOp,
+}
+
+impl<'v> Generate for BinaryOperation<'v> {
+    fn generate(&self, context: &mut IrBuilder) -> ExprNode {
+        let lhs = self.lhs.generate(context);
+        let rhs = self.rhs.generate(context);
+
+        context.binary(lhs, self.operator.clone(), rhs)
+    }
+
+    fn type_info(&self, context: &IrBuilder) -> TypeInfo {
+        self.lhs.type_info(context)
+    }
+}
+
+
+macro_rules! impl_operations {
+    ($target:tt => $($imp:tt),+) => {
+        $(impl_operation_generic!($target, $imp);)+
+    };
+}
+
+macro_rules! impl_operation_generic {
+    ($target:tt, Numerical) => {
+        impl_operation_generic!($target, +);
+        impl_operation_generic!($target, -);
+        impl_operation_generic!($target, *);
+        impl_operation_generic!($target, /);
+        impl_operation_generic!($target, %);
+    };
+
+    ($target:tt, +) => {
+        impl_operation!($target, add, Add, Add);
+    };
+    ($target:tt, -) => {
+        impl_operation!($target, sub, Sub, Sub);
+    };
+    ($target:tt, *) => {
+        impl_operation!($target, mul, Mul, Mul);
+    };
+    ($target:tt, /) => {
+        impl_operation!($target, div, Div, Div);
+    };
+    ($target:tt, %) => {
+        impl_operation!($target, rem, Rem, Rem);
+    };
+}
+
+macro_rules! impl_operation {
+    ($target:tt, $method_name:tt, $trait_name:ident, $bin_op_variant:tt) => {
+        impl<'v, T> $trait_name<&'v T> for &'v $target
+        where
+            T: Generate + 'v,
+        {
+            type Output = BinaryOperation<'v>;
+
+            fn $method_name(self, rhs: &'v T) -> Self::Output {
+                BinaryOperation {
+                    lhs: Box::new(self),
+                    rhs: Box::new(rhs),
+                    operator: BinaryOp::$bin_op_variant,
+                }
+            }
+        }
+    };
+}
+
+impl_operations!(Variable => Numerical);
