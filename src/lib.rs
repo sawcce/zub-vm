@@ -176,14 +176,8 @@ mod tests {
         let mut vm = VM::new();
         vm.add_native("print", print_native, 1);
         vm.exec(&builder.build(), true);
-        let a = vm.globals
-            .get("tuple")
-            .unwrap()
-            .as_object()
-            .unwrap();
-        let a = unsafe {
-                a.get_unchecked()
-        };
+        let a = vm.globals.get("tuple").unwrap().as_object().unwrap();
+        let a = unsafe { a.get_unchecked() };
         println!("A: {:#?}", a)
     }
 
@@ -191,15 +185,9 @@ mod tests {
     fn structure() {
         let mut builder = IrBuilder::new();
 
-        let members = vec![
-            builder.string("Sawcce"),
-            builder.number(16.0),
-        ];
+        let members = vec![builder.string("Sawcce"), builder.number(16.0)];
 
-        let keys = vec![
-            "name".into(),
-            "age".into(),
-        ];
+        let keys = vec!["name".into(), "age".into()];
 
         let structure = builder.structure(keys, members);
         builder.bind(Binding::global("struct"), structure.clone());
@@ -211,7 +199,11 @@ mod tests {
         );
 
         let callee = builder.var(Binding::global("print"));
-        let call = builder.call(callee.clone(), vec![builder.var(Binding::global("value"))], None);
+        let call = builder.call(
+            callee.clone(),
+            vec![builder.var(Binding::global("value"))],
+            None,
+        );
         builder.emit(call);
 
         let b = builder.set_member("name".into(), var.clone(), builder.string("Hello, world!"));
@@ -221,21 +213,15 @@ mod tests {
             Binding::global("value"),
             builder.get_member("name".into(), var),
         );
-        
+
         let call = builder.call(callee, vec![builder.var(Binding::global("value"))], None);
         builder.emit(call);
 
         let mut vm = VM::new();
         vm.add_native("print", print_native, 1);
         vm.exec(&builder.build(), true);
-        let a = vm.globals
-            .get("struct")
-            .unwrap()
-            .as_object()
-            .unwrap();
-        let a = unsafe {
-                a.get_unchecked()
-        };
+        let a = vm.globals.get("struct").unwrap().as_object().unwrap();
+        let a = unsafe { a.get_unchecked() };
         println!("A: {:#?}", a)
     }
 
@@ -366,17 +352,33 @@ mod tests {
     }
 
     #[test]
-    fn new_api() {
+    fn old_api() {
         let mut builder = IrBuilder::new();
 
         let pi_approx = 3.141592;
-        let var = Variable::bind("pi", &pi_approx);
-        let var_bind_instr = var.generate(&mut builder);
-        builder.emit(var_bind_instr);
+        let pi_binding = Binding::global("pi");
+        builder.bind(pi_binding, builder.number(pi_approx));
 
         let mut vm = VM::new();
         vm.exec(&builder.build(), true);
-        
+
         assert_eq!(vm.globals.get("pi").unwrap().as_float(), pi_approx);
+    }
+
+    #[test]
+    fn new_api() {
+        let mut builder = IrBuilder::new();
+
+        // New api
+        // In the new api, nothing is generated unless specified explicitely
+        Variable::global("pi").bind(&3.141592).emit(&mut builder);
+
+        // Old api
+        // builder.bind(Binding::global("pi"), builder.number(3.141592)); 
+
+        let mut vm = VM::new();
+        vm.exec(&builder.build(), true);
+
+        assert_eq!(vm.globals.get("pi").unwrap().as_float(), 3.141592);
     }
 }

@@ -7,35 +7,93 @@ use std::rc::Rc;
 
 pub trait Generate {
     fn generate(&self, context: &mut IrBuilder) -> ExprNode;
+    fn type_info(&self, context: &IrBuilder) -> TypeInfo;
+    fn emit(&self, context: &mut IrBuilder) {
+        let gen = self.generate(context);
+        context.program.push(gen);
+    }
 }
 
-pub enum Variable<'v> {
-    Definition {
-        name: String,
-        value: Box<&'v dyn Generate>,
-    },
-    Reference {
-        name: String,
-    },
+#[derive(Clone)]
+pub struct Variable {
+    name: String,
+    depth: Option<(usize, usize)>,
 }
 
-impl<'v> Variable<'v> {
-    pub fn bind(name: impl ToString, value: &'v dyn Generate) -> Self {
-        Self::Definition {
+impl Variable {
+    pub fn global(name: impl ToString) -> Self {
+        Variable { name: name.to_string(), depth: None }
+    }
+
+    pub fn local(name: impl ToString, depth: (usize, usize)) -> Self {
+        Variable {
             name: name.to_string(),
+            depth: Some(depth),
+        }
+    }
+
+    pub fn binding(&self) -> Binding {
+        match self.depth {
+            None => Binding::global(&self.name),
+            Some((depth, function_depth)) => Binding::local(&self.name, depth, function_depth),
+        }
+    }
+
+    pub fn bind<'v>(&self, value: &'v dyn Generate) -> Assignement<'v> {
+        Assignement {
+            variable: self.clone(),
             value: Box::new(value),
         }
     }
 }
 
-impl<'v> Generate for Variable<'v> {
+impl Generate for Variable {
     fn generate(&self, context: &mut IrBuilder) -> ExprNode {
-        match self {
-            Variable::Definition { name, value } => {
-                Expr::Bind(Binding::global(name), value.generate(context)).node(TypeInfo::nil())
+        let type_info = context
+            .types
+            .last()
+            .unwrap()
+            .get(&self.name)
+            .unwrap_or(&TypeInfo::nil())
+            .clone();
+
+        match self.depth {
+            None => Expr::Var(Binding::global(&self.name)).node(type_info),
+            Some((depth, function_depth)) => {
+                Expr::Var(Binding::local(&self.name, depth, function_depth)).node(type_info)
             }
-            Variable::Reference { name } => Expr::Var(Binding::global(name)).node(TypeInfo::nil()),
         }
+    }
+
+    fn type_info(&self, context: &IrBuilder) -> TypeInfo {
+        TypeInfo::nil()
+    }
+}
+
+#[derive(Clone)]
+pub struct Assignement<'v> {
+    variable: Variable,
+    value: Box<&'v dyn Generate>,
+}
+
+impl<'v> Generate for Assignement<'v> {
+    fn generate(&self, context: &mut IrBuilder) -> ExprNode {
+        let binding = self.variable.binding();
+
+        let type_info = self.value.type_info(&context).clone();
+
+        let map = context
+            .types
+            .get_mut(binding.clone().depth.unwrap_or(0) + binding.function_depth)
+            .unwrap();
+
+        map.insert(binding.name().into(), type_info);
+
+        Expr::Bind(binding.clone(), self.value.generate(context)).node(TypeInfo::nil())
+    }
+
+    fn type_info(&self, context: & IrBuilder) -> TypeInfo {
+        TypeInfo::nil()
     }
 }
 
@@ -51,6 +109,10 @@ where
         let lit = Literal::Number(val);
 
         Expr::Literal(lit).node(info)
+    }
+
+    fn type_info(&self, context: &IrBuilder) -> TypeInfo {
+        TypeInfo::new(Type::Float)
     }
 }
 
@@ -68,10 +130,6 @@ impl IrBuilder {
         }
     }
 
-    pub fn resolve_var_binding(&mut self, name: String) -> Binding {
-        let depth = self.types
-        MutexGuard
-    }
 
     pub fn bind(&mut self, binding: Binding, rhs: ExprNode) {
         let map = self
@@ -245,6 +303,7 @@ impl IrBuilder {
 
         self.scope_in();
         let body = body_builder.build();
+        // println!("Body: {body:?}");
         self.scope_out();
 
         let func_body = IrFunctionBody {
@@ -328,5 +387,10 @@ impl IrBuilder {
 
     pub fn emit(&mut self, atom: ExprNode) {
         self.program.push(atom)
+    }
+
+    pub fn emit_gen(&mut self, node: impl Generate)  {
+        let node = node.generate(self);
+        self.program.push(node);
     }
 }
