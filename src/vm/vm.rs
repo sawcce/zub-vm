@@ -780,7 +780,6 @@ impl VM {
                 panic!("Can't index tuple with non-number")
             };
 
-            println!("{tuple:?}");
             let member = tuple.get(idx);
 
             self.push(*member);
@@ -822,10 +821,12 @@ impl VM {
             frame.with_chunk(|chunk| {
                 let name = chunk.name();
                 let line = chunk.line(ip);
-                eprintln!("         at [line {}] in {}", line, name);
+                eprintln!("         at [line {}] in {}, ip: {ip}", line, name);
             });
         }
-        ::std::process::exit(1);
+
+        // Enables the rust runtime to show the stack trace (much easier to debug)
+        panic!("Runtime error!");
     }
 
     fn on_loop(&mut self) {
