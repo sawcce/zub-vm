@@ -223,7 +223,7 @@ impl<'c> Disassembler<'c> {
 
     fn closure(&mut self) {
         let val = self.read_constant();
-        println!("{:?}", unsafe { val.as_object().unwrap().get_unchecked() });
+
         let count = val
             .as_object()
             .and_then(|o| self.heap.get(o))
