@@ -272,6 +272,9 @@ mod tests {
     }
 
     #[test]
+    /// This test is left as-is to showcase how upvalues work
+    /// but it is much heasier to directly use a global binding
+    /// for fib in that specific case.
     fn recursion() {
         let mut builder = IrBuilder::new();
 
@@ -293,7 +296,7 @@ mod tests {
             let two = builder.number(2.0);
 
             let binary_0 = builder.binary(n.clone(), BinaryOp::Sub, one);
-            let binary_1 = builder.binary(n.clone(), BinaryOp::Sub, two);
+            let binary_1 = builder.binary(n.clone(), BinaryOp::Sub, two.clone());
 
             println!("{}", upvalue_fib.is_upvalue());
 
@@ -306,9 +309,8 @@ mod tests {
 
             let final_binary = builder.binary(call_0, BinaryOp::Add, call_1);
 
-            let three = builder.number(3.0);
-            let n_less_than_3 = builder.binary(n.clone(), BinaryOp::LtEqual, three);
-            let ternary = builder.ternary(n_less_than_3, n.clone(), Some(final_binary));
+            let n_less_than_2 = builder.binary(n.clone(), BinaryOp::Lt, two);
+            let ternary = builder.ternary(n_less_than_2, n.clone(), Some(final_binary));
 
             builder.ret(Some(ternary))
         });
@@ -359,14 +361,22 @@ mod tests {
     }
 
     fn print_native(context: &mut CallContext) -> Value {
-        println!("{}", context.get_arg_with_heap(1));
+        println!("Print native: {}", context.get_arg_with_heap(1));
         Value::nil()
     }
 
     #[test]
     fn new_api() {
-        let value = 16;
-        let var = Variable::bind("qsd", &value);
-        println!("{:?}", var.generate());
+        let mut builder = IrBuilder::new();
+
+        let pi_approx = 3.141592;
+        let var = Variable::bind("pi", &pi_approx);
+        let var_bind_instr = var.generate(&mut builder);
+        builder.emit(var_bind_instr);
+
+        let mut vm = VM::new();
+        vm.exec(&builder.build(), true);
+        
+        assert_eq!(vm.globals.get("pi").unwrap().as_float(), pi_approx);
     }
 }
