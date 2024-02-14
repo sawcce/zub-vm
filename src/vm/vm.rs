@@ -69,6 +69,21 @@ impl CallFrame {
             fun(closure.chunk())
         }
     }
+
+    pub fn get_chunk(&self) -> Chunk {
+        unsafe {
+            self.closure
+                .get_unchecked()
+                .as_closure()
+                .expect("closure reference by construction")
+                .chunk()
+                .clone()
+        }
+    }
+
+    pub fn end_reached(&self) -> bool {
+        return self.ip >= self.with_chunk(|c| c.len());
+    }
 }
 
 macro_rules! binary_op {
