@@ -76,8 +76,74 @@ macro_rules! binary_op {
         let b = $self.pop();
         let a = $self.pop();
 
-        $self.push((a == b).into());
-        return
+        let rhs = b.decode();
+        let lhs = a.decode();
+
+        use Variant::*;
+
+        let val = binary_op_impl!(lhs, rhs, $op);
+
+        $self.push(val.into())
+    };
+}
+
+macro_rules! binary_op_impl {
+    // TODO: Implement == for objects
+    ($lhs:ident, $rhs:ident, ==) => {
+        match ($lhs, $rhs) {
+            (Float(lhs), Float(rhs)) => lhs == rhs,
+            (True, True) => true,
+            (False, False) => true,
+            (True, False) => false,
+            (False, True) => false,
+            _ => panic!("Invalid binary op!"),
+        }
+    };
+    ($lhs:ident, $rhs:ident, >) => {
+        match ($lhs, $rhs) {
+            (Float(lhs), Float(rhs)) => lhs > rhs,
+            (True, False) => true,
+            (False, True) => false,
+            _ => panic!("Invalid binary op!"),
+        }
+    };
+    ($lhs:ident, $rhs:ident, <) => {
+        match ($lhs, $rhs) {
+            (Float(lhs), Float(rhs)) => lhs < rhs,
+            (True, False) => false,
+            (False, True) => true,
+            _ => panic!("Invalid binary op!"),
+        }
+    };
+    ($lhs:ident, $rhs:ident, +) => {
+        match ($lhs, $rhs) {
+            (Float(lhs), Float(rhs)) => lhs + rhs,
+            _ => panic!("Invalid binary op!"),
+        }
+    };
+    ($lhs:ident, $rhs:ident, -) => {
+        match ($lhs, $rhs) {
+            (Float(lhs), Float(rhs)) => lhs - rhs,
+            _ => panic!("Invalid binary op!"),
+        }
+    };
+    ($lhs:ident, $rhs:ident, *) => {
+        match ($lhs, $rhs) {
+            (Float(lhs), Float(rhs)) => lhs * rhs,
+            _ => panic!("Invalid binary op!"),
+        }
+    };
+    ($lhs:ident, $rhs:ident, /) => {
+        match ($lhs, $rhs) {
+            (Float(lhs), Float(rhs)) => lhs / rhs,
+            _ => panic!("Invalid binary op!"),
+        }
+    };
+    ($lhs:ident, $rhs:ident, %) => {
+        match ($lhs, $rhs) {
+            (Float(lhs), Float(rhs)) => lhs % rhs,
+            _ => panic!("Invalid binary op!"),
+        }
     };
 }
 
