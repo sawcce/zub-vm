@@ -729,7 +729,7 @@ impl VM {
             Variant::Obj(ref handle) => {
                 HashVariant::Str(self.deref(*handle).as_string().unwrap().to_owned())
             }
-            Nil => HashVariant::Nil,
+            Variant::Nil => HashVariant::Nil,
         };
 
         let list_object = self.deref_mut(list.as_object().unwrap());
