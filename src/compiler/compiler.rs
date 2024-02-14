@@ -235,22 +235,32 @@ impl<'g> Compiler<'g> {
             Return(val) => self.emit_return((*val).clone()),
 
             Function(ref ir_func) => {
-                let idx = if let Some(depth) = ir_func.var.depth {
-                    self.state_mut().add_local(ir_func.var.name(), depth);
-                    self.state_mut().resolve_local(ir_func.var.name());
-                    None
-                } else {
-                    self.emit(Op::DefineGlobal);
-                    let idx = self.string_constant(ir_func.var.name());
-                    Some(idx)
-                };
+                println!("Adding func: {:?}", ir_func.var);
+
+                // Locals are referenced relative to their position
+                // on the stack (frame_start + idx). Hence, unless
+                // they are being redefined, there's no need to call
+                // "define_local". As Op::Closure pushes the closure
+                // handle onto the stack, define_local would break
+                // the expected behaviour as the index for the local
+                // wouldn't exist on the stack. As such, locals
+                // need to be defined *in advance* so that the compiler
+                // knows where they should be placed (if you're trying
+                // to do recursion this is very important, otherwise
+                // not necessarily). Globals on the other hand are stored
+                // in a hashmap, and the value is popped from the stack
+                // so the Op::DefineGlobal needs to be put after the closure. 
+
+                if ir_func.var.depth != None {
+                    self.var_define(&ir_func.var, None); 
+                }
 
                 self.function_decl(ir_func);
-                /* self.var_define(&ir_func.var, None); */
 
-                if let Some(idx) = idx {
-                    self.emit_byte(idx)
+                if ir_func.var.depth == None {
+                    self.var_define(&ir_func.var, None); 
                 }
+
             }
 
             AnonFunction(ref ir_func) => {
@@ -268,6 +278,7 @@ impl<'g> Compiler<'g> {
             }
 
             Call(ref call) => {
+                println!("Call: {:?} {}", call.callee, call.args.len());
                 let arity = call.args.len();
 
                 if arity > 8 {
@@ -535,17 +546,16 @@ impl<'g> Compiler<'g> {
         let handle = self.heap.insert(Object::Function(function)).into_handle();
 
         let value = Value::object(handle);
+        let idx = self.chunk_mut().add_constant(value);
 
         self.emit(Op::Closure);
+        self.emit_byte(idx);
 
         for upvalue in upvalues {
             self.emit_byte(if upvalue.is_local { 1 } else { 0 });
 
             self.emit_byte(upvalue.index)
         }
-
-        let idx = self.chunk_mut().add_constant(value);
-        self.emit_byte(idx);
     }
 
     fn start_function(&mut self, method: bool, name: &str, arity: u8, scope: usize) {
