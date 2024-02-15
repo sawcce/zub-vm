@@ -118,6 +118,9 @@ impl_operations!(BinaryOperation<A, B> => Numerical);
 ### Legacy support
 You are free to use the "old" api and I plan on supporting it for zub's current set of features. If other features were to be added I can't guarantee if they would be supported by the old api. Please note that `v2` and the legacy api aren't mutually exclusive and you can technically mix-and-match both (although not recommended as the paradigms are widely different).
 
+### Fancying more?
+Feel free to take a look at `src/lib.rs` where there are many more example of the legacy api and some of `v2`.
+
 ## Languages
 
 ### Hugorm
