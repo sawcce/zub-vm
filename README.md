@@ -2,7 +2,8 @@
 > A super-fast, stack-based virtual machine for dynamic languages
 
 # Warning
-This library has recently been forked and is being reworked on to add new features, don't expect a lot of stuff to be stable.
+This library has been forked for about a year, updates have been slow due to my studies
+feel free to open PRs/issues I will check them out as fast as I can.
 
 ## Features
 
@@ -22,7 +23,7 @@ This library has recently been forked and is being reworked on to add new featur
 
 ## Example
 
-### Building IR is easy
+### Building IR is easy (yes, but)
 
 Getting your backend up and running shouldn't have to be hard.
 
@@ -45,6 +46,77 @@ When you feel like the IR is looking smooth. Simply let VM throw it through the 
 let mut vm = VM::new();
 vm.exec(&builder.build());
 ```
+
+### (yest, but) there's a new interface
+In order to provide a smoother experience, a new experimental `v2` IR Builder pattern is being worked on.
+The main idea is that your IR generation pipeline depends much less on `IrBuilder`.
+This new api has been in the works due to the fact that multiple methods like `builder.number` shouldn't
+depend on the builder to work (and their implementation doesn't); this new api aims to take full advantage
+of rust traits so that you don't have to worry about all of the technicalities.  
+To do so, you use some existing structs/methods provided such as `Function::new`, `Variable::global,local` etc...
+the key difference is that nothing is added to the program unless explicitely said so.  
+**Enough talk, let's see that sweet sweet example!**
+
+```rust
+let mut builder = IrBuilder::new();
+
+Variable::global("sum")
+  .bind(20 + 30)
+  .emit(&mut builder);
+```
+You might be asking yourself "but wouldn't that mean that 20 + 30 is removed at rust compile time?", the answer is y.e.s. This new
+interface prevents you from doing simple mistakes like these.
+As you can see `emit` is explicitely called in order to add the assignement to the program! 
+
+## V2
+So... what's the big deal with the V2 bindings?   
+The main advantage is that your program structure is valid without having the need to rely on `IrBuilder`. This allows you to copy variable references and so much more. It's like having an AST that you can then add to your program in whatever order you want.
+
+### How
+This new interface relies on one single trait:
+
+```rust
+pub trait Generate: Debug {
+    fn generate(&self, context: &mut IrBuilder) -> ExprNode;
+    fn type_info(&self, context: &IrBuilder) -> TypeInfo;
+}
+``` 
+
+each structure that you want to enable to generate IR must implement that trait. This gives us the ability to multiply structs together using rust's own traits:
+
+```rust
+let square_def = Function::new(square.clone(), vec!["n"], |builder| {
+    let n = Variable::local("n", (1, 1));
+
+    (n.clone() * n).ret().emit(builder); // We can multiply n by itself
+});
+```
+
+The trait also provides some helpers (as demonstrated before):
+```rust
+fn ret(self) -> Return<Self>
+where
+    Self: Generate + Sized,
+{
+    Return { value: self }
+}
+```
+
+If you want to create your own struct to facilitate the creation of classes or practically anything, you can do it.
+
+There are also macros to implement `*, +, /, %, .gt(), .lte()` operations on structs that implement generate:
+```rust
+impl_operations!(Variable<> => PartialEq); // == and =/=
+impl_operations!(Variable<> => PartialOrd); // >=, <=, >, <
+impl_operations!(Variable<> => Numerical); // +, -, *, /, %
+
+impl_operations!(BinaryOperation<A, B> => PartialEq);
+impl_operations!(BinaryOperation<A, B> => PartialOrd);
+impl_operations!(BinaryOperation<A, B> => Numerical);
+```
+
+### Legacy support
+You are free to use the "old" api and I plan on supporting it for zub's current set of features. If other features were to be added I can't guarantee if they would be supported by the old api. Please note that `v2` and the legacy api aren't mutually exclusive and you can technically mix-and-match both (although not recommended as the paradigms are widely different).
 
 ## Languages
 
