@@ -366,12 +366,13 @@ mod tests {
     }
 
     #[test]
-    fn pi() {
+    fn pi_math() {
         let mut builder = IrBuilder::new();
 
         // New api
         // In the new api, nothing is generated unless specified explicitely
-        Variable::global("pi").bind(3.141592).emit(&mut builder);
+        let pi = Variable::global("pi");
+        pi.bind(3.141592).emit(&mut builder);
 
         // Old api
         // builder.bind(Binding::global("pi"), builder.number(3.141592));

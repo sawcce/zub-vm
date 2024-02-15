@@ -2,21 +2,6 @@ use std::ops::{Add, Div, Mul, Rem, Sub};
 
 use super::{BinaryOp, Binding, Expr, ExprNode, IrBuilder, Literal, Type, TypeInfo};
 
-macro_rules! impl_partial_cmp {
-    ($method_name:ident, $bin_op:expr) => {
-        fn $method_name<'v>(&'v self, other: &'v dyn Generate) -> BinaryOperation
-        where
-            Self: Generate + Sized,
-        {
-            BinaryOperation {
-                lhs: Box::new(self),
-                operator: $bin_op,
-                rhs: Box::new(other),
-            }
-        }
-    };
-}
-
 pub trait Generate {
     fn generate(&self, context: &mut IrBuilder) -> ExprNode;
     fn type_info(&self, context: &IrBuilder) -> TypeInfo;
@@ -24,16 +9,9 @@ pub trait Generate {
         let gen = self.generate(context);
         context.program.push(gen);
     }
-
-    impl_partial_cmp!(equals, BinaryOp::Equal);
-    impl_partial_cmp!(not_equals, BinaryOp::NEqual);
-    impl_partial_cmp!(lt, BinaryOp::Lt);
-    impl_partial_cmp!(lte, BinaryOp::LtEqual);
-    impl_partial_cmp!(gt, BinaryOp::Gt);
-    impl_partial_cmp!(gte, BinaryOp::GtEqual);
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Variable {
     name: String,
     depth: Option<(usize, usize)>,
@@ -61,10 +39,13 @@ impl Variable {
         }
     }
 
-    pub fn bind<'v>(&self, value: impl Generate + 'v) -> Assignement<'v> {
+    pub fn bind<T>(&self, value: T) -> Assignement<T>
+    where
+        T: Generate,
+    {
         Assignement {
             variable: self.clone(),
-            value: Box::new(value),
+            value,
         }
     }
 }
@@ -98,12 +79,16 @@ impl Generate for Variable {
 // able to clone the struct, this doesn't
 // seem necessary but if you think so feel
 // free to open an issue
-pub struct Assignement<'v> {
+#[derive(Debug)]
+pub struct Assignement<T> {
     variable: Variable,
-    value: Box<dyn Generate + 'v>,
+    value: T,
 }
 
-impl<'v> Generate for Assignement<'v> {
+impl<T> Generate for Assignement<T>
+where
+    T: Generate,
+{
     fn generate(&self, context: &mut IrBuilder) -> ExprNode {
         let binding = self.variable.binding();
 
@@ -143,13 +128,18 @@ where
     }
 }
 
-pub struct BinaryOperation<'v> {
-    lhs: Box<&'v dyn Generate>,
-    rhs: Box<&'v dyn Generate>,
+#[derive(Debug)]
+pub struct BinaryOperation<L, R> {
+    lhs: L,
+    rhs: R,
     operator: BinaryOp,
 }
 
-impl<'v> Generate for BinaryOperation<'v> {
+impl<L, R> Generate for BinaryOperation<L, R>
+where
+    L: Generate,
+    R: Generate,
+{
     fn generate(&self, context: &mut IrBuilder) -> ExprNode {
         let lhs = self.lhs.generate(context);
         let rhs = self.rhs.generate(context);
@@ -163,49 +153,79 @@ impl<'v> Generate for BinaryOperation<'v> {
 }
 
 macro_rules! impl_operations {
-    ($target:tt => $($imp:tt),+) => {
-        $(impl_operation_generic!($target, $imp);)+
+    ($target:tt<$($generics:ident),*> => $imp:tt) => {
+        impl_operation_generic!($target<$($generics),*>, $imp);
     };
 }
 
 macro_rules! impl_operation_generic {
-    ($target:tt, Numerical) => {
-        impl_operation_generic!($target, +);
-        impl_operation_generic!($target, -);
-        impl_operation_generic!($target, *);
-        impl_operation_generic!($target, /);
-        impl_operation_generic!($target, %);
+    ($target:tt<$($generics:ident),*>, Numerical) => {
+        impl_operation_generic!($target<$($generics),*>, +);
+        impl_operation_generic!($target<$($generics),*>, -);
+        impl_operation_generic!($target<$($generics),*>, *);
+        impl_operation_generic!($target<$($generics),*>, /);
+        impl_operation_generic!($target<$($generics),*>, %);
     };
 
-    ($target:tt, +) => {
-        impl_operation!($target, add, Add, Add);
+    ($target:tt<$($generics:ident),*>, PartialEq) => {
+        impl_partial_cmp!($target<$($generics),*>, equals, BinaryOp::Equal);
+        impl_partial_cmp!($target<$($generics),*>, not_equals, BinaryOp::NEqual);
     };
-    ($target:tt, -) => {
-        impl_operation!($target, sub, Sub, Sub);
+
+    ($target:ident<$($generics:ident),*>, PartialOrd) => {
+        impl_partial_cmp!($target<$($generics),*>, lt, BinaryOp::Lt);
+        impl_partial_cmp!($target<$($generics),*>, lte, BinaryOp::LtEqual);
+        impl_partial_cmp!($target<$($generics),*>, gt, BinaryOp::Gt);
+        impl_partial_cmp!($target<$($generics),*>, gte, BinaryOp::GtEqual);
     };
-    ($target:tt, *) => {
-        impl_operation!($target, mul, Mul, Mul);
+
+    ($target:tt<$($generics:ident),*>, +) => {
+        impl_operation!($target<$($generics),*>, add, Add, Add);
     };
-    ($target:tt, /) => {
-        impl_operation!($target, div, Div, Div);
+    ($target:tt<$($generics:ident),*>, -) => {
+        impl_operation!($target<$($generics),*>, sub, Sub, Sub);
     };
-    ($target:tt, %) => {
-        impl_operation!($target, rem, Rem, Rem);
+    ($target:tt<$($generics:ident),*>, *) => {
+        impl_operation!($target<$($generics),*>, mul, Mul, Mul);
+    };
+    ($target:tt<$($generics:ident),*>, /) => {
+        impl_operation!($target<$($generics),*>, div, Div, Div);
+    };
+    ($target:tt<$($generics:ident),*>, %) => {
+        impl_operation!($target<$($generics),*>, rem, Rem, Rem);
+    };
+}
+
+macro_rules! impl_partial_cmp {
+    ($target:tt<$($generics:ident),*>, $method_name:ident, $bin_op:expr) => {
+        impl<$($generics),*> $target<$($generics),*> {
+            /// Compares two implementors of the Generate trait
+            pub fn $method_name<R>(self, other: R) -> BinaryOperation<Self, R>
+            where
+                Self: Generate,
+            {
+                BinaryOperation {
+                    lhs: self,
+                    operator: $bin_op,
+                    rhs: other,
+                }
+            }
+        }
     };
 }
 
 macro_rules! impl_operation {
-    ($target:tt, $method_name:tt, $trait_name:ident, $bin_op_variant:tt) => {
-        impl<'v, T> $trait_name<&'v T> for &'v $target
+    ($target:tt<$($generics:ident),*>, $method_name:tt, $trait_name:ident, $bin_op_variant:tt) => {
+        impl<R, $($generics),*> $trait_name<R> for $target<$($generics),*>
         where
-            T: Generate + 'v,
+            R: Generate,
         {
-            type Output = BinaryOperation<'v>;
+            type Output = BinaryOperation<$target<$($generics),*>, R>;
 
-            fn $method_name(self, rhs: &'v T) -> Self::Output {
+            fn $method_name(self, rhs: R) -> Self::Output {
                 BinaryOperation {
-                    lhs: Box::new(self),
-                    rhs: Box::new(rhs),
+                    lhs: self,
+                    rhs,
                     operator: BinaryOp::$bin_op_variant,
                 }
             }
@@ -213,4 +233,10 @@ macro_rules! impl_operation {
     };
 }
 
-impl_operations!(Variable => Numerical);
+impl_operations!(Variable<> => PartialEq);
+impl_operations!(Variable<> => PartialOrd);
+impl_operations!(Variable<> => Numerical);
+
+impl_operations!(BinaryOperation<A, B> => PartialEq);
+impl_operations!(BinaryOperation<A, B> => PartialOrd);
+impl_operations!(BinaryOperation<A, B> => Numerical);
