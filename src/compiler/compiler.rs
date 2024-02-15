@@ -1,3 +1,5 @@
+use self::object::Function;
+
 use super::chunk::{Chunk, Op};
 use super::*;
 

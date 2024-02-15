@@ -1,13 +1,42 @@
-use std::ops::{Add, Div, Mul, Rem, Sub};
+use std::{
+    cell::RefCell,
+    fmt::Debug,
+    ops::{Add, Deref, Div, Mul, Rem, Sub},
+    rc::Rc,
+};
 
-use super::{BinaryOp, Binding, Expr, ExprNode, IrBuilder, Literal, Type, TypeInfo};
+use super::{
+    BinaryOp, Binding, Expr, ExprNode, IrBuilder, IrFunction, IrFunctionBody, Literal, Type,
+    TypeInfo,
+};
 
-pub trait Generate {
+pub trait Generate: Debug {
     fn generate(&self, context: &mut IrBuilder) -> ExprNode;
     fn type_info(&self, context: &IrBuilder) -> TypeInfo;
     fn emit(&self, context: &mut IrBuilder) {
         let gen = self.generate(context);
         context.program.push(gen);
+    }
+
+    fn boxed(self) -> Box<Self>
+    where
+        Self: Generate + Sized,
+    {
+        Box::new(self)
+    }
+
+    fn ret(self) -> Return<Self>
+    where
+        Self: Generate + Sized,
+    {
+        Return { value: self }
+    }
+
+    fn call<'v>(self, args: Vec<Box<dyn Generate>>) -> Call<Self>
+    where
+        Self: Generate + Sized,
+    {
+        Call { callee: self, args }
     }
 }
 
@@ -112,7 +141,7 @@ where
 impl<'a, T> Generate for T
 where
     f64: From<T>,
-    T: Clone + Copy,
+    T: Clone + Copy + Debug,
 {
     fn generate(&self, _: &mut IrBuilder) -> ExprNode {
         let info = TypeInfo::new(Type::Float);
@@ -125,6 +154,138 @@ where
 
     fn type_info(&self, context: &IrBuilder) -> TypeInfo {
         TypeInfo::new(Type::Float)
+    }
+}
+
+#[derive(Debug)]
+pub struct Call<T> {
+    callee: T,
+    args: Vec<Box<dyn Generate>>,
+}
+
+impl<T> Call<T> {
+    pub fn new(callee: T, args: Vec<Box<dyn Generate>>) -> Self {
+        Self { callee, args }
+    }
+}
+
+impl<T> Generate for Call<T>
+where
+    T: Generate,
+{
+    fn generate(&self, context: &mut IrBuilder) -> ExprNode {
+        let callee = self.callee.generate(context);
+        let args = self
+            .args
+            .iter()
+            .map(|elem| elem.generate(context))
+            .collect();
+
+        Expr::Call(super::ir::Call { callee, args }).node(self.callee.type_info(context))
+    }
+
+    fn type_info(&self, context: &IrBuilder) -> TypeInfo {
+        self.callee.type_info(context)
+    }
+}
+
+#[derive(Debug)]
+pub struct Return<T> {
+    value: T,
+}
+
+impl<T> Return<T> {
+    pub fn new(value: T) -> Self {
+        Self { value }
+    }
+}
+
+impl<T> Generate for Return<T>
+where
+    T: Generate,
+{
+    fn generate(&self, context: &mut IrBuilder) -> ExprNode {
+        let type_info = self.value.type_info(context);
+        Expr::Return(Some(self.value.generate(context))).node(type_info)
+    }
+
+    fn type_info(&self, context: &IrBuilder) -> TypeInfo {
+        self.value.type_info(context)
+    }
+}
+
+pub struct Function<T> {
+    variable: Variable,
+    args: Vec<String>,
+    body: T,
+}
+
+impl<T> Function<T> {
+    pub fn new<'a>(
+        variable: Variable,
+        args: Vec<&'a str>,
+        body: T,
+    ) -> Self
+    where
+        T: Fn(&mut IrBuilder),
+    {
+        Self {
+            variable,
+            args: args.iter().map(|it| it.to_string()).collect(),
+            body,
+        }
+    }
+}
+
+impl<T> Debug for Function<T> {
+   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+       f.debug_struct("Function")
+        .field("variable", &self.variable)
+        .field("args", &self.args)
+        .field("function", &"<...>")
+        .finish()
+   } 
+}
+
+impl<T> Generate for Function<T>
+where
+    T: Fn(&mut IrBuilder),
+{
+    fn generate(&self, context: &mut IrBuilder) -> ExprNode {
+        let mut body_builder = IrBuilder::new();
+        (self.body)(&mut body_builder);
+
+        context.scope_in();
+        let body = body_builder.build();
+        context.scope_out();
+
+        let func_body = IrFunctionBody {
+            params: self
+                .args
+                .iter()
+                .cloned()
+                .map(|x| {
+                    Binding::local(
+                        &x,
+                        self.variable.binding().depth.unwrap_or(0) + 1,
+                        self.variable.binding().function_depth + 1,
+                    )
+                })
+                .collect::<Vec<Binding>>(),
+            method: false,
+            inner: body,
+        };
+
+        let ir_func = IrFunction {
+            var: self.variable.binding(),
+            body: Rc::new(RefCell::new(func_body)),
+        };
+
+        Expr::Function(ir_func).node(TypeInfo::nil())
+    }
+
+    fn type_info(&self, context: &IrBuilder) -> TypeInfo {
+        TypeInfo::nil()
     }
 }
 
@@ -240,3 +401,7 @@ impl_operations!(Variable<> => Numerical);
 impl_operations!(BinaryOperation<A, B> => PartialEq);
 impl_operations!(BinaryOperation<A, B> => PartialOrd);
 impl_operations!(BinaryOperation<A, B> => Numerical);
+
+impl_operations!(Call<A> => PartialEq);
+impl_operations!(Call<A> => PartialOrd);
+impl_operations!(Call<A> => Numerical);

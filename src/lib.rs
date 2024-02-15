@@ -377,11 +377,50 @@ mod tests {
         // Old api
         // builder.bind(Binding::global("pi"), builder.number(3.141592));
 
+        let deg_to_rad = Variable::global("deg_to_rad");
+
+        Function::new(deg_to_rad.clone(), vec!["deg"], |builder| {
+            let deg = Variable::local("deg", (1, 1));
+
+            (deg / 360 * 2 * pi.clone()).ret().emit(builder);
+        })
+        .emit(&mut builder);
+
+        Variable::global("60deg->rad")
+            .bind(deg_to_rad.clone().call(vec![60.boxed()]))
+            .emit(&mut builder);
+        Variable::global("180deg->rad")
+            .bind(deg_to_rad.call(vec![180.boxed()]))
+            .emit(&mut builder);
+
         let mut vm = VM::new();
         vm.exec(&builder.build(), true);
 
         println!("Globals: {:?}", vm.globals);
 
         assert_eq!(vm.globals.get("pi").unwrap().as_float(), 3.141592);
+    }
+
+    #[test]
+    fn squared() {
+        let mut builder = IrBuilder::new();
+
+        let square = Variable::global("square");
+
+        let square_def = Function::new(square.clone(), vec!["n"], |builder| {
+            let n = Variable::local("n", (1, 1));
+
+            (n.clone() * n).ret().emit(builder);
+        });
+
+        square_def.emit(&mut builder);
+
+        let square_10 = square.call(vec![10.boxed()]);
+        Variable::global("10²").bind(square_10).emit(&mut builder);
+
+        let mut vm = VM::new();
+        vm.exec(&builder.build(), true);
+
+        println!("Globals: {:#?}", vm.globals);
     }
 }
