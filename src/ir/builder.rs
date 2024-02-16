@@ -89,7 +89,7 @@ impl IrBuilder {
     pub fn get_member(&self, key: String, structure: ExprNode) -> ExprNode {
         use types::Type::Struct;
 
-        if let Some(Struct(ref keys)) = structure.type_info().kind() {
+        if let Struct(ref keys) = structure.type_info().kind() {
             let index = keys.iter().position(|e| e == &key).unwrap();
             let index = self.number(index as f64);
             Expr::GetElement(structure, index).node(TypeInfo::nil())
@@ -101,7 +101,7 @@ impl IrBuilder {
     pub fn set_member(&self, key: String, structure: ExprNode, value: ExprNode) -> ExprNode {
         use types::Type::Struct;
 
-        if let Some(Struct(ref keys)) = structure.type_info().kind() {
+        if let Struct(ref keys) = structure.type_info().kind() {
             let index = keys.iter().position(|e| e == &key).unwrap();
             let index = self.number(index as f64);
             Expr::SetElement(structure, index, value).node(TypeInfo::nil())

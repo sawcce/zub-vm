@@ -1,38 +1,51 @@
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Type {
     Float,
     Int,
     Bool,
     String,
     Struct(Vec<String>),
-    Nil
+    /// Absence of value (for statements and None/Nil in some languages)
+    Nil,
+    /// Any type
+    Any,
 }
 
-#[derive(Clone, Debug)]
+impl Type {
+    pub fn as_info(self) -> TypeInfo {
+        TypeInfo { kind: self }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TypeInfo {
-    kind: Option<Type>
+    kind: Type,
 }
 
 impl TypeInfo {
     pub fn new(kind: Type) -> Self {
-        TypeInfo {
-            kind: Some(kind),
-        }
+        TypeInfo { kind }
     }
 
-    pub fn kind(&self) -> &Option<Type> {
+    pub fn kind(&self) -> &Type {
         &self.kind
     }
 
     pub fn structure(keys: Vec<String>) -> Self {
         TypeInfo {
-            kind: Some(Type::Struct(keys)),
+            kind: Type::Struct(keys),
         }
     }
 
+    pub fn any() -> Self {
+        TypeInfo { kind: Type::Any}
+    }
+
     pub fn nil() -> Self {
-        TypeInfo {
-            kind: None,
-        }
+        TypeInfo { kind: Type::Nil }
+    }
+
+    pub fn is_numerical(&self) -> bool {
+        self.kind == Type::Float || self.kind == Type::Any
     }
 }
