@@ -38,6 +38,17 @@ pub trait Generate: Debug {
     {
         Call { callee: self, args }
     }
+
+    fn if_true_do<T>(self, body: T) -> Conditional<Self, T>
+    where
+        Self: Generate + Sized,
+    {
+        Conditional {
+            condition: self,
+            if_true: body,
+            if_false: None,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -138,25 +149,6 @@ where
     }
 }
 
-impl<'a, T> Generate for T
-where
-    f64: From<T>,
-    T: Clone + Copy + Debug,
-{
-    fn generate(&self, _: &mut IrBuilder) -> ExprNode {
-        let info = TypeInfo::new(Type::Float);
-        let val = self.clone().clone();
-        let val = Into::<f64>::into(val);
-        let lit = Literal::Number(val);
-
-        Expr::Literal(lit).node(info)
-    }
-
-    fn type_info(&self, context: &IrBuilder) -> TypeInfo {
-        TypeInfo::new(Type::Float)
-    }
-}
-
 #[derive(Debug)]
 pub struct Call<T> {
     callee: T,
@@ -221,11 +213,7 @@ pub struct Function<T> {
 }
 
 impl<T> Function<T> {
-    pub fn new<'a>(
-        variable: Variable,
-        args: Vec<&'a str>,
-        body: T,
-    ) -> Self
+    pub fn new<'a>(variable: Variable, args: Vec<&'a str>, body: T) -> Self
     where
         T: Fn(&mut IrBuilder),
     {
@@ -238,13 +226,13 @@ impl<T> Function<T> {
 }
 
 impl<T> Debug for Function<T> {
-   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-       f.debug_struct("Function")
-        .field("variable", &self.variable)
-        .field("args", &self.args)
-        .field("function", &"<...>")
-        .finish()
-   } 
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Function")
+            .field("variable", &self.variable)
+            .field("args", &self.args)
+            .field("function", &"<...>")
+            .finish()
+    }
 }
 
 impl<T> Generate for Function<T>
@@ -282,6 +270,48 @@ where
         };
 
         Expr::Function(ir_func).node(TypeInfo::nil())
+    }
+
+    fn type_info(&self, context: &IrBuilder) -> TypeInfo {
+        TypeInfo::nil()
+    }
+}
+
+/// Structure to represent a conditional statement/expression.
+/// `if_false` needs to be boxed
+pub struct Conditional<C, T> {
+    condition: C,
+    if_true: T,
+    if_false: Option<Box<dyn Generate>>,
+}
+
+impl<C, T> Conditional<C, T> {
+    /// Sets the else clause of that conditional. `else_body` needs
+    /// to be boxed.
+    pub fn else_do(mut self, else_body: Box<dyn Generate>) -> Self {
+        self.if_false = Some(else_body);
+        self
+    }
+} 
+
+impl<C, T> Debug for Conditional<C, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Conditional")
+            .field("condition", &"<...>")
+            .field("if_true", &"{...}")
+            .field("if_false", &"{...}?")
+            .finish()
+    }
+}
+
+impl<C, T> Generate for Conditional<C, T>
+where
+    C: Generate + Debug,
+    T: Generate + Debug,
+{
+    fn generate(&self, context: &mut IrBuilder) -> ExprNode {
+        let tr = self.if_true.generate(context);
+        Expr::If(self.condition.generate(context), tr, None).node(TypeInfo::nil())
     }
 
     fn type_info(&self, context: &IrBuilder) -> TypeInfo {
