@@ -1,14 +1,9 @@
 use super::TypeInfo;
 
-use std::{
-    collections::HashMap,
-    rc::Rc,
-    cell::RefCell,
-    fmt,
-};
+use std::{cell::RefCell, collections::HashMap, fmt, rc::Rc};
 
 pub type LocalId = usize;
-pub type DataId  = usize;
+pub type DataId = usize;
 
 #[derive(Clone, Debug)]
 pub enum Literal {
@@ -32,7 +27,7 @@ impl Binding {
         Binding {
             name: name.to_string(),
             depth: Some(0),
-            function_depth: 0
+            function_depth: 0,
         }
     }
 
@@ -40,7 +35,7 @@ impl Binding {
         Binding {
             name: name.to_string(),
             depth: None,
-            function_depth: 0
+            function_depth: 0,
         }
     }
 
@@ -48,7 +43,7 @@ impl Binding {
         Binding {
             name: name.to_string(),
             depth: Some(depth),
-            function_depth: function_depth
+            function_depth: function_depth,
         }
     }
 
@@ -59,18 +54,17 @@ impl Binding {
 
     #[inline]
     pub fn is_upvalue(&self) -> bool {
-        self.depth
-            .map(|d| d > self.function_depth)
-            .unwrap_or(false)
+        self.depth.map(|d| d > self.function_depth).unwrap_or(false)
     }
 
     pub fn upvalue_depth(&self) -> Option<usize> {
-        self.depth.and_then(|d|
+        self.depth.and_then(|d| {
             if self.is_upvalue() {
                 Some(d - self.function_depth)
             } else {
                 None
-            })
+            }
+        })
     }
 
     pub fn name(&self) -> &str {
@@ -94,6 +88,29 @@ pub enum BinaryOp {
     And,
     Or,
     Pow,
+}
+
+impl BinaryOp {
+    pub fn as_symbol(&self) -> &str {
+        use BinaryOp::*;
+
+        match self {
+            Add => "+",
+            Sub => "-",
+            Mul => "*",
+            Div => "/",
+            Rem => "%",
+            Equal => "==",
+            NEqual => "!=",
+            GtEqual => ">=",
+            LtEqual => "<=",
+            Gt => ">",
+            Lt => "<",
+            And => "&&",
+            Or => "||",
+            Pow => "^",
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -131,7 +148,7 @@ impl<T> Node<T> {
     pub fn new(inner: T, type_info: TypeInfo) -> Self {
         Node {
             inner: Box::new(inner),
-            type_info
+            type_info,
         }
     }
 
@@ -157,7 +174,6 @@ impl<T: fmt::Debug> fmt::Debug for Node<T> {
 pub type ExprNode = Node<Expr>;
 
 // NOTE: LocalId removed for now, as it wasn't used in the compiler
-
 
 #[derive(Clone, Debug)]
 pub enum Expr {
@@ -205,7 +221,7 @@ impl Expr {
 #[derive(Debug)]
 pub struct Program {
     data: HashMap<DataId, ExprNode>,
-    entry: Option<DataId>
+    entry: Option<DataId>,
 }
 
 impl Program {
@@ -219,7 +235,7 @@ impl Program {
     pub fn with_entry(entry: DataId) -> Self {
         Program {
             data: HashMap::new(),
-            entry: Some(entry)
+            entry: Some(entry),
         }
     }
 
