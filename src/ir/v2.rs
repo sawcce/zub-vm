@@ -1,6 +1,6 @@
 use std::{
     cell::RefCell,
-    fmt::Debug,
+    fmt::{format, write, Debug},
     ops::{Add, Deref, Div, Mul, Rem, Sub},
     rc::Rc,
 };
@@ -9,6 +9,8 @@ use super::{
     BinaryOp, Binding, Expr, ExprNode, IrBuilder, IrFunction, IrFunctionBody, Literal, Type,
     TypeInfo,
 };
+
+use log::{info, trace, warn};
 
 pub trait Generate: Debug {
     fn generate(&self, context: &mut IrBuilder) -> ExprNode;
@@ -51,10 +53,16 @@ pub trait Generate: Debug {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Variable {
     name: String,
     depth: Option<(usize, usize)>,
+}
+
+impl Debug for Variable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name)
+    }
 }
 
 impl Variable {
@@ -109,7 +117,7 @@ impl Generate for Variable {
     }
 
     fn type_info(&self, context: &IrBuilder) -> TypeInfo {
-        TypeInfo::nil()
+        TypeInfo::any()
     }
 }
 
@@ -269,7 +277,7 @@ where
             body: Rc::new(RefCell::new(func_body)),
         };
 
-        Expr::Function(ir_func).node(TypeInfo::nil())
+        Expr::Function(ir_func).node(TypeInfo::any())
     }
 
     fn type_info(&self, context: &IrBuilder) -> TypeInfo {
@@ -292,7 +300,7 @@ impl<C, T> Conditional<C, T> {
         self.if_false = Some(else_body);
         self
     }
-} 
+}
 
 impl<C, T> Debug for Conditional<C, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -315,15 +323,43 @@ where
     }
 
     fn type_info(&self, context: &IrBuilder) -> TypeInfo {
-        TypeInfo::nil()
+        let if_true_ty = self.if_true.type_info(context);
+        let if_false_ty = if let Some(ref x) = self.if_false {
+            x.type_info(context)
+        } else {
+            if_true_ty.clone()
+        };
+
+        if if_true_ty == if_false_ty {
+            return if_false_ty;
+        }
+
+        TypeInfo::any()
     }
 }
 
-#[derive(Debug)]
 pub struct BinaryOperation<L, R> {
     lhs: L,
     rhs: R,
     operator: BinaryOp,
+}
+
+impl<L, R> Debug for BinaryOperation<L, R>
+where
+    L: Debug,
+    R: Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write(
+            f,
+            format_args!(
+                "{:?} {} {:?}",
+                self.lhs,
+                self.operator.as_symbol(),
+                self.rhs
+            ),
+        )
+    }
 }
 
 impl<L, R> Generate for BinaryOperation<L, R>
@@ -332,6 +368,22 @@ where
     R: Generate,
 {
     fn generate(&self, context: &mut IrBuilder) -> ExprNode {
+        let lhs_ty = self.lhs.type_info(context);
+        let rhs_ty = self.rhs.type_info(context);
+
+        if !lhs_ty.is_numerical() || !rhs_ty.is_numerical() {
+            let message = format!(
+                "Trying to apply '{}' on types of {:?} and {:?} => {:?} {} {:?}",
+                self.operator.as_symbol(),
+                lhs_ty.kind(),
+                rhs_ty.kind(),
+                self.lhs,
+                self.operator.as_symbol(),
+                self.rhs
+            );
+            warn!("{}", message);
+        }
+
         let lhs = self.lhs.generate(context);
         let rhs = self.rhs.generate(context);
 

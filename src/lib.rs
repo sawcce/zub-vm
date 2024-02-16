@@ -8,6 +8,8 @@ extern crate im_rc;
 pub mod compiler;
 pub mod ir;
 pub mod vm;
+extern crate env_logger;
+
 
 #[cfg(test)]
 mod tests {
@@ -393,6 +395,24 @@ mod tests {
             .bind(deg_to_rad.call(vec![180.boxed()]))
             .emit(&mut builder);
 
+        let is_2pi = Variable::global("is_2pi");
+        Function::new(is_2pi.clone(), vec!["angle"], |builder| {
+            let angle = Variable::local("angle", (1, 1));
+            let pi = Variable::global("pi");
+
+            (angle % pi * 2)
+                .equals(0)
+                .if_true_do(true)
+                .else_do(false.boxed())
+                .ret()
+                .emit(builder)
+        })
+        .emit(&mut builder);
+
+        Variable::global("is_2pi_2pi")
+            .bind(is_2pi.call(vec![(pi * 2).boxed()]))
+            .emit(&mut builder);
+
         let mut vm = VM::new();
         vm.exec(&builder.build(), true);
 
@@ -417,6 +437,25 @@ mod tests {
 
         let square_10 = square.call(vec![10.boxed()]);
         Variable::global("10²").bind(square_10).emit(&mut builder);
+
+        let mut vm = VM::new();
+        vm.exec(&builder.build(), true);
+
+        println!("Globals: {:#?}", vm.globals);
+    }
+
+    #[test]
+    fn type_safety() {
+        env_logger::init();
+
+        let mut builder = IrBuilder::new();
+
+        let x = Variable::global("x");
+        x.clone().bind(10).emit(&mut builder);
+
+        Variable::global("y").bind(x.clone() + Some(10)).emit(&mut builder);
+        Variable::global("y").bind(x.clone() + Option::<()>::None).emit(&mut builder);
+        Variable::global("y").bind(x + ()).emit(&mut builder);
 
         let mut vm = VM::new();
         vm.exec(&builder.build(), true);

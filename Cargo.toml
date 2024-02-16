@@ -19,6 +19,8 @@ flame = "0.2.2"
 flamer = "0.3"
 im-rc = "14.3.0"
 num = "0.4.0"
+log = "0.4.20"
+env_logger = "0.11.2"
 
 [dev-dependencies]
 logos = "0.11.4"
