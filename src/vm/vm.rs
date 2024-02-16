@@ -543,7 +543,9 @@ impl VM {
 
                 return self.push(new.into());
             }
-            _ => {}
+            _ => {
+                self.runtime_error("Invalid binop!");
+            }
         }
     }
 
