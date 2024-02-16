@@ -62,3 +62,13 @@ where
         TypeInfo::nil()
     }
 }
+
+impl Generate for () {
+    fn generate(&self, context: &mut IrBuilder) -> ExprNode {
+        Expr::Literal(Literal::Nil).node(TypeInfo::nil())
+    }
+
+    fn type_info(&self, context: &IrBuilder) -> TypeInfo {
+        TypeInfo::nil()
+    }
+}
