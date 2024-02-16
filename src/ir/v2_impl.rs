@@ -41,3 +41,24 @@ impl Generate for bool {
         TypeInfo::new(Type::Bool)
     }
 }
+
+impl<T> Generate for Option<T>
+where
+    T: Generate + Sized,
+{
+    fn generate(&self, context: &mut IrBuilder) -> ExprNode {
+        if let Some(x) = self {
+            return x.generate(context);
+        }
+
+        Expr::Literal(Literal::Nil).node(TypeInfo::nil())
+    }
+
+    fn type_info(&self, context: &IrBuilder) -> TypeInfo {
+        if let Some(x) = self {
+            return x.type_info(context);
+        }
+
+        TypeInfo::nil()
+    }
+}
