@@ -130,7 +130,7 @@ impl IrBuilder {
     }
 
     pub fn call(&self, callee: ExprNode, args: Vec<ExprNode>, retty: Option<TypeInfo>) -> ExprNode {
-        let call = Call { callee, args };
+        let call = super::ir::Call { callee, args };
 
         Expr::Call(call).node(if let Some(info) = retty {
             info
