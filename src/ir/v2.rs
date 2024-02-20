@@ -53,29 +53,29 @@ pub trait Generate: Debug {
     }
 }
 
-#[derive(Clone)]
-pub struct Variable {
-    name: String,
+#[derive(Copy, Clone)]
+pub struct Variable<'n> {
+    name: &'n str,
     depth: Option<(usize, usize)>,
 }
 
-impl Debug for Variable {
+impl<'n> Debug for Variable<'n> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.name)
     }
 }
 
-impl Variable {
-    pub fn global(name: impl ToString) -> Self {
+impl<'n> Variable<'n> {
+    pub fn global(name: impl Into<&'n str>) -> Self {
         Variable {
-            name: name.to_string(),
+            name: name.into(),
             depth: None,
         }
     }
 
-    pub fn local(name: impl ToString, depth: (usize, usize)) -> Self {
+    pub fn local(name: impl Into<&'n str>, depth: (usize, usize)) -> Self {
         Variable {
-            name: name.to_string(),
+            name: name.into(),
             depth: Some(depth),
         }
     }
@@ -98,13 +98,13 @@ impl Variable {
     }
 }
 
-impl Generate for Variable {
+impl<'n> Generate for Variable<'n> {
     fn generate(&self, context: &mut IrBuilder) -> ExprNode {
         let type_info = context
             .types
             .last()
             .unwrap()
-            .get(&self.name)
+            .get(&self.name.to_string())
             .unwrap_or(&TypeInfo::nil())
             .clone();
 
@@ -128,12 +128,12 @@ impl Generate for Variable {
 // seem necessary but if you think so feel
 // free to open an issue
 #[derive(Debug)]
-pub struct Assignement<T> {
-    variable: Variable,
+pub struct Assignement<'n, T> {
+    variable: Variable<'n>,
     value: T,
 }
 
-impl<T> Generate for Assignement<T>
+impl<'n, T> Generate for Assignement<'n, T>
 where
     T: Generate,
 {
@@ -214,14 +214,14 @@ where
     }
 }
 
-pub struct Function<T> {
-    variable: Variable,
+pub struct Function<'n, T> {
+    variable: Variable<'n>,
     args: Vec<String>,
     body: T,
 }
 
-impl<T> Function<T> {
-    pub fn new<'a>(variable: Variable, args: Vec<&'a str>, body: T) -> Self
+impl<'n, T> Function<'n, T> {
+    pub fn new<'a>(variable: Variable<'n>, args: Vec<&'a str>, body: T) -> Self
     where
         T: Fn(&mut IrBuilder),
     {
@@ -233,7 +233,7 @@ impl<T> Function<T> {
     }
 }
 
-impl<T> Debug for Function<T> {
+impl<'n, T> Debug for Function<'n, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Function")
             .field("variable", &self.variable)
@@ -243,7 +243,7 @@ impl<T> Debug for Function<T> {
     }
 }
 
-impl<T> Generate for Function<T>
+impl<'n, T> Generate for Function<'n, T>
 where
     T: Fn(&mut IrBuilder),
 {
@@ -396,52 +396,52 @@ where
 }
 
 macro_rules! impl_operations {
-    ($target:tt<$($generics:ident),*> => $imp:tt) => {
-        impl_operation_generic!($target<$($generics),*>, $imp);
+    ($target:tt$(< $($lt:tt),+ >)? => $imp:tt) => {
+        impl_operation_generic!($target$(<$($lt),+>)?, $imp);
     };
 }
 
 macro_rules! impl_operation_generic {
-    ($target:tt<$($generics:ident),*>, Numerical) => {
-        impl_operation_generic!($target<$($generics),*>, +);
-        impl_operation_generic!($target<$($generics),*>, -);
-        impl_operation_generic!($target<$($generics),*>, *);
-        impl_operation_generic!($target<$($generics),*>, /);
-        impl_operation_generic!($target<$($generics),*>, %);
+    ($target:tt$(< $($lt:tt),+ >)?, Numerical) => {
+        impl_operation_generic!($target$(<$($lt),+>)?, +);
+        impl_operation_generic!($target$(<$($lt),+>)?, -);
+        impl_operation_generic!($target$(<$($lt),+>)?, *);
+        impl_operation_generic!($target$(<$($lt),+>)?, /);
+        impl_operation_generic!($target$(<$($lt),+>)?, %);
     };
 
-    ($target:tt<$($generics:ident),*>, PartialEq) => {
-        impl_partial_cmp!($target<$($generics),*>, equals, BinaryOp::Equal);
-        impl_partial_cmp!($target<$($generics),*>, not_equals, BinaryOp::NEqual);
+    ($target:tt$(< $($lt:tt),+ >)?, PartialEq) => {
+        impl_partial_cmp!($target$(<$($lt),+>)?, equals, BinaryOp::Equal);
+        impl_partial_cmp!($target$(<$($lt),+>)?, not_equals, BinaryOp::NEqual);
     };
 
-    ($target:ident<$($generics:ident),*>, PartialOrd) => {
-        impl_partial_cmp!($target<$($generics),*>, lt, BinaryOp::Lt);
-        impl_partial_cmp!($target<$($generics),*>, lte, BinaryOp::LtEqual);
-        impl_partial_cmp!($target<$($generics),*>, gt, BinaryOp::Gt);
-        impl_partial_cmp!($target<$($generics),*>, gte, BinaryOp::GtEqual);
+    ($target:ident$(< $($lt:tt),+ >)?, PartialOrd) => {
+        impl_partial_cmp!($target$(<$($lt),+>)?, lt, BinaryOp::Lt);
+        impl_partial_cmp!($target$(<$($lt),+>)?, lte, BinaryOp::LtEqual);
+        impl_partial_cmp!($target$(<$($lt),+>)?, gt, BinaryOp::Gt);
+        impl_partial_cmp!($target$(<$($lt),+>)?, gte, BinaryOp::GtEqual);
     };
 
-    ($target:tt<$($generics:ident),*>, +) => {
-        impl_operation!($target<$($generics),*>, add, Add, Add);
+    ($target:tt$(< $($lt:tt),+ >)?, +) => {
+        impl_operation!($target$(<$($lt),+>)?, add, Add, Add);
     };
-    ($target:tt<$($generics:ident),*>, -) => {
-        impl_operation!($target<$($generics),*>, sub, Sub, Sub);
+    ($target:tt$(< $($lt:tt),+ >)?, -) => {
+        impl_operation!($target$(<$($lt),+>)?, sub, Sub, Sub);
     };
-    ($target:tt<$($generics:ident),*>, *) => {
-        impl_operation!($target<$($generics),*>, mul, Mul, Mul);
+    ($target:tt$(< $($lt:tt),+ >)?, *) => {
+        impl_operation!($target$(<$($lt),+>)?, mul, Mul, Mul);
     };
-    ($target:tt<$($generics:ident),*>, /) => {
-        impl_operation!($target<$($generics),*>, div, Div, Div);
+    ($target:tt$(< $($lt:tt),+ >)?, /) => {
+        impl_operation!($target$(<$($lt),+>)?, div, Div, Div);
     };
-    ($target:tt<$($generics:ident),*>, %) => {
-        impl_operation!($target<$($generics),*>, rem, Rem, Rem);
+    ($target:tt$(< $($lt:tt),+ >)?, %) => {
+        impl_operation!($target$(<$($lt),+>)?, rem, Rem, Rem);
     };
 }
 
 macro_rules! impl_partial_cmp {
-    ($target:tt<$($generics:ident),*>, $method_name:ident, $bin_op:expr) => {
-        impl<$($generics),*> $target<$($generics),*> {
+    ($target:tt$(< $($lt:tt),+ >)?, $method_name:ident, $bin_op:expr) => {
+        impl$(<$($lt),+>)? $target$(<$($lt),+>)? {
             /// Compares two implementors of the Generate trait
             pub fn $method_name<R>(self, other: R) -> BinaryOperation<Self, R>
             where
@@ -458,12 +458,12 @@ macro_rules! impl_partial_cmp {
 }
 
 macro_rules! impl_operation {
-    ($target:tt<$($generics:ident),*>, $method_name:tt, $trait_name:ident, $bin_op_variant:tt) => {
-        impl<R, $($generics),*> $trait_name<R> for $target<$($generics),*>
+    ($target:tt$(< $($lt:tt),+ >)?, $method_name:tt, $trait_name:ident, $bin_op_variant:tt) => {
+        impl<$($($lt),+)?, R> $trait_name<R> for $target$(<$($lt),+>)?
         where
             R: Generate,
         {
-            type Output = BinaryOperation<$target<$($generics),*>, R>;
+            type Output = BinaryOperation<$target$(<$($lt),+>)?, R>;
 
             fn $method_name(self, rhs: R) -> Self::Output {
                 BinaryOperation {
@@ -476,9 +476,9 @@ macro_rules! impl_operation {
     };
 }
 
-impl_operations!(Variable<> => PartialEq);
-impl_operations!(Variable<> => PartialOrd);
-impl_operations!(Variable<> => Numerical);
+impl_operations!(Variable<'a> => PartialEq);
+impl_operations!(Variable<'a> => PartialOrd);
+impl_operations!(Variable<'a> => Numerical);
 
 impl_operations!(BinaryOperation<A, B> => PartialEq);
 impl_operations!(BinaryOperation<A, B> => PartialOrd);

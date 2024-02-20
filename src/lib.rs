@@ -1,4 +1,4 @@
-#![feature(vec_drain_as_slice)]
+// #![feature(vec_drain_as_slice)]
 
 extern crate flame;
 #[macro_use]
@@ -9,7 +9,6 @@ pub mod compiler;
 pub mod ir;
 pub mod vm;
 extern crate env_logger;
-
 
 #[cfg(test)]
 mod tests {
@@ -381,22 +380,22 @@ mod tests {
 
         let deg_to_rad = Variable::global("deg_to_rad");
 
-        Function::new(deg_to_rad.clone(), vec!["deg"], |builder| {
+        Function::new(deg_to_rad, vec!["deg"], |builder| {
             let deg = Variable::local("deg", (1, 1));
 
-            (deg / 360 * 2 * pi.clone()).ret().emit(builder);
+            (deg / 360 * 2 * pi).ret().emit(builder);
         })
         .emit(&mut builder);
 
         Variable::global("60deg->rad")
-            .bind(deg_to_rad.clone().call(vec![60.boxed()]))
+            .bind(deg_to_rad.call(vec![60.boxed()]))
             .emit(&mut builder);
         Variable::global("180deg->rad")
             .bind(deg_to_rad.call(vec![180.boxed()]))
             .emit(&mut builder);
 
         let is_2pi = Variable::global("is_2pi");
-        Function::new(is_2pi.clone(), vec!["angle"], |builder| {
+        Function::new(is_2pi, vec!["angle"], |builder| {
             let angle = Variable::local("angle", (1, 1));
             let pi = Variable::global("pi");
 
@@ -427,10 +426,10 @@ mod tests {
 
         let square = Variable::global("square");
 
-        let square_def = Function::new(square.clone(), vec!["n"], |builder| {
+        let square_def = Function::new(square, vec!["n"], |builder| {
             let n = Variable::local("n", (1, 1));
 
-            (n.clone() * n).ret().emit(builder);
+            (n * n).ret().emit(builder);
         });
 
         square_def.emit(&mut builder);
@@ -451,11 +450,14 @@ mod tests {
         let mut builder = IrBuilder::new();
 
         let x = Variable::global("x");
-        x.clone().bind(10).emit(&mut builder);
+        x.bind(10).emit(&mut builder);
 
-        Variable::global("y").bind(x.clone() + Some(10)).emit(&mut builder);
-        Variable::global("y").bind(x.clone() + Option::<()>::None).emit(&mut builder);
-        Variable::global("y").bind(x + ()).emit(&mut builder);
+        Variable::global("y").bind(x + Some(10)).emit(&mut builder);
+        // These would yield type error warnings
+        // Variable::global("y")
+        //     .bind(x + Option::<()>::None)
+        //     .emit(&mut builder);
+        // Variable::global("y").bind(x + ()).emit(&mut builder);
 
         let mut vm = VM::new();
         vm.exec(&builder.build(), true);
