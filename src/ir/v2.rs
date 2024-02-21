@@ -41,7 +41,7 @@ pub trait Generate: Debug {
         Call { callee: self, args }
     }
 
-    fn if_true_do<T>(self, body: T) -> Conditional<Self, T>
+    fn if_true_do<T, F>(self, body: T) -> Conditional<Self, T, F>
     where
         Self: Generate + Sized,
     {
@@ -297,22 +297,31 @@ where
 
 /// Structure to represent a conditional statement/expression.
 /// `if_false` needs to be boxed
-pub struct Conditional<C, T> {
+pub struct Conditional<C, T, E> {
     condition: C,
     if_true: T,
-    if_false: Option<Box<dyn Generate>>,
+    if_false: Option<E>,
 }
 
-impl<C, T> Conditional<C, T> {
+impl<C, T, E> Conditional<C, T, E> {
     /// Sets the else clause of that conditional. `else_body` needs
     /// to be boxed.
-    pub fn else_do(mut self, else_body: Box<dyn Generate>) -> Self {
+    pub fn else_do(mut self, else_body: E) -> Self {
         self.if_false = Some(else_body);
+        self
+    }
+
+
+}
+
+impl<C, T> Conditional<C, T, ()> {
+    pub fn else_none(mut self) -> Self {
+        self.if_false = Option::<()>::None;
         self
     }
 }
 
-impl<C, T> Debug for Conditional<C, T> {
+impl<C, T, E> Debug for Conditional<C, T, E> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Conditional")
             .field("condition", &"<...>")
@@ -322,10 +331,11 @@ impl<C, T> Debug for Conditional<C, T> {
     }
 }
 
-impl<C, T> Generate for Conditional<C, T>
+impl<C, T, E> Generate for Conditional<C, T, E>
 where
     C: Generate + Debug,
     T: Generate + Debug,
+    E: Generate,
 {
     fn generate(&self, context: &mut IrBuilder) -> ExprNode {
         let tr = self.if_true.generate(context);

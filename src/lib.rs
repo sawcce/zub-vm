@@ -406,7 +406,7 @@ mod tests {
             (angle % pi * 2)
                 .equals(0)
                 .if_true_do(true)
-                .else_do(false.boxed())
+                .else_do(false)
                 .ret()
                 .emit(builder)
         })
@@ -492,10 +492,8 @@ mod tests {
                                 (n % 5)
                                     .equals(0)
                                     .if_true_do(print.call(vec!["Buzz!".to_string().boxed()]))
-                                    .else_do(print.call(vec!["".to_string().boxed()]).boxed())
-                                    .boxed(),
+                                    .else_do(print.call(vec!["".to_string().boxed()]))
                             )
-                            .boxed(),
                     )
                     .emit(builder);
 
