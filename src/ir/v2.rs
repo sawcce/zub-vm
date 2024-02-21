@@ -343,8 +343,8 @@ impl<'a, C, T, E> Debug for Conditional<'a, C, T, E> {
 
 impl<'a, C, T, E> Generate for Conditional<'a, C, T, E>
 where
-    C: Generate + Debug,
-    T: Generate + Debug,
+    C: Generate,
+    T: Generate,
     E: Generate,
 {
     fn generate(&self, context: &mut IrBuilder) -> ExprNode {
