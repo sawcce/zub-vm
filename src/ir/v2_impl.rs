@@ -72,3 +72,23 @@ impl Generate for () {
         TypeInfo::nil()
     }
 }
+
+impl Generate for String {
+    fn generate(&self, context: &mut IrBuilder) -> ExprNode {
+        Expr::Literal(Literal::String(self.clone())).node(TypeInfo::new(Type::String))
+    }
+
+    fn type_info(&self, context: &IrBuilder) -> TypeInfo {
+        TypeInfo::new(Type::String)
+    }
+}
+
+impl Generate for str {
+    fn generate(&self, context: &mut IrBuilder) -> ExprNode {
+        Expr::Literal(Literal::String(self.to_string())).node(TypeInfo::new(Type::String))
+    }
+
+    fn type_info(&self, context: &IrBuilder) -> TypeInfo {
+        TypeInfo::new(Type::String)
+    }
+}
