@@ -12,6 +12,10 @@ extern crate env_logger;
 
 #[cfg(test)]
 mod tests {
+    use std::vec;
+
+    use colored::Colorize;
+
     use super::ir::*;
     use super::vm::*;
 
@@ -463,5 +467,44 @@ mod tests {
         vm.exec(&builder.build(), true);
 
         println!("Globals: {:#?}", vm.globals);
+    }
+
+    #[test]
+    fn fizz_buzz() {
+        let mut builder = IrBuilder::new();
+
+        let n = Variable::global("n");
+        n.bind(0).emit(&mut builder);
+
+        let print = Variable::global("print");
+
+        n.lte(100)
+            .while_true_do(|builder: &mut IrBuilder| {
+                (n % 3)
+                    .equals(0)
+                    .and((n % 5).equals(0))
+                    .if_true_do(print.call(vec!["FizzBuzz!".to_string().boxed()]))
+                    .else_do(
+                        (n % 3)
+                            .equals(0)
+                            .if_true_do(print.call(vec!["Fizz!".to_string().boxed()]))
+                            .else_do(
+                                (n % 5)
+                                    .equals(0)
+                                    .if_true_do(print.call(vec!["Buzz!".to_string().boxed()]))
+                                    .else_do(print.call(vec!["".to_string().boxed()]).boxed())
+                                    .boxed(),
+                            )
+                            .boxed(),
+                    )
+                    .emit(builder);
+
+                n.bind(n + 1).emit(builder);
+            })
+            .emit(&mut builder);
+
+        let mut vm = VM::new();
+        vm.add_native("print", print_native, 1);
+        vm.exec(&builder.build(), true);
     }
 }

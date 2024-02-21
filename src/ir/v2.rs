@@ -58,7 +58,7 @@ pub trait Generate: Debug {
     {
         WhileLoop {
             condition: self,
-            body
+            body,
         }
     }
 }
@@ -329,7 +329,13 @@ where
 {
     fn generate(&self, context: &mut IrBuilder) -> ExprNode {
         let tr = self.if_true.generate(context);
-        Expr::If(self.condition.generate(context), tr, None).node(TypeInfo::nil())
+        let fl = if let Some(ref x) = self.if_false {
+            Some(x.generate(context))
+        } else {
+            None
+        };
+
+        Expr::If(self.condition.generate(context), tr, fl).node(TypeInfo::nil())
     }
 
     fn type_info(&self, context: &IrBuilder) -> TypeInfo {
@@ -353,7 +359,10 @@ pub struct WhileLoop<C, B> {
     body: B,
 }
 
-impl<C, B> Debug for WhileLoop<C, B> where C: Generate {
+impl<C, B> Debug for WhileLoop<C, B>
+where
+    C: Generate,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "while {:?} {{ ... }}", self.condition)
     }
@@ -374,7 +383,7 @@ where
     }
 
     fn type_info(&self, context: &IrBuilder) -> TypeInfo {
-        TypeInfo::nil()    
+        TypeInfo::nil()
     }
 }
 
@@ -455,6 +464,11 @@ macro_rules! impl_operation_generic {
         impl_partial_cmp!($target$(<$($lt),+>)?, not_equals, BinaryOp::NEqual);
     };
 
+    ($target:tt$(< $($lt:tt),+ >)?, BoolOperations) => {
+        impl_partial_cmp!($target$(<$($lt),+>)?, and, BinaryOp::And);
+        impl_partial_cmp!($target$(<$($lt),+>)?, or, BinaryOp::Or);
+    };
+
     ($target:ident$(< $($lt:tt),+ >)?, PartialOrd) => {
         impl_partial_cmp!($target$(<$($lt),+>)?, lt, BinaryOp::Lt);
         impl_partial_cmp!($target$(<$($lt),+>)?, lte, BinaryOp::LtEqual);
@@ -519,11 +533,14 @@ macro_rules! impl_operation {
 impl_operations!(Variable<'a> => PartialEq);
 impl_operations!(Variable<'a> => PartialOrd);
 impl_operations!(Variable<'a> => Numerical);
+impl_operations!(Variable<'a> => BoolOperations);
 
 impl_operations!(BinaryOperation<A, B> => PartialEq);
 impl_operations!(BinaryOperation<A, B> => PartialOrd);
 impl_operations!(BinaryOperation<A, B> => Numerical);
+impl_operations!(BinaryOperation<A, B> => BoolOperations);
 
 impl_operations!(Call<A> => PartialEq);
 impl_operations!(Call<A> => PartialOrd);
 impl_operations!(Call<A> => Numerical);
+impl_operations!(Call<A> => BoolOperations);
