@@ -51,6 +51,16 @@ pub trait Generate: Debug {
             if_false: None,
         }
     }
+
+    fn while_true_do<T>(self, body: T) -> WhileLoop<Self, T>
+    where
+        Self: Generate + Sized,
+    {
+        WhileLoop {
+            condition: self,
+            body
+        }
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -335,6 +345,36 @@ where
         }
 
         TypeInfo::any()
+    }
+}
+
+pub struct WhileLoop<C, B> {
+    condition: C,
+    body: B,
+}
+
+impl<C, B> Debug for WhileLoop<C, B> where C: Generate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "while {:?} {{ ... }}", self.condition)
+    }
+}
+
+impl<C, B> Generate for WhileLoop<C, B>
+where
+    C: Generate,
+    B: Fn(&mut IrBuilder),
+{
+    fn generate(&self, context: &mut IrBuilder) -> ExprNode {
+        let mut body_builder = IrBuilder::new();
+        (self.body)(&mut body_builder);
+
+        let body = Expr::Block(body_builder.build()).node(TypeInfo::nil());
+
+        Expr::While(self.condition.generate(context), body).node(TypeInfo::nil())
+    }
+
+    fn type_info(&self, context: &IrBuilder) -> TypeInfo {
+        TypeInfo::nil()    
     }
 }
 
