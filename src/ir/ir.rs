@@ -197,7 +197,7 @@ pub enum Expr {
     Not(ExprNode),
     Neg(ExprNode),
 
-    If(ExprNode, ExprNode, Option<ExprNode>),
+    If(ExprNode, ExprNode, Vec<(ExprNode, ExprNode)>, Option<ExprNode>),
     While(ExprNode, ExprNode),
 
     List(Vec<ExprNode>),

@@ -223,7 +223,7 @@ impl IrBuilder {
         then_body: ExprNode,
         else_body: Option<ExprNode>,
     ) -> ExprNode {
-        Expr::If(cond, then_body, else_body).node(TypeInfo::nil())
+        Expr::If(cond, then_body, vec![], else_body).node(TypeInfo::nil())
     }
 
     pub fn block(&mut self, body: Vec<ExprNode>) -> ExprNode {
@@ -259,7 +259,7 @@ impl IrBuilder {
             None
         };
 
-        Expr::If(cond, then_body, else_body).node(TypeInfo::nil())
+        Expr::If(cond, then_body, vec![], else_body).node(TypeInfo::nil())
     }
 
     pub fn while_(&mut self, cond: ExprNode, then_build: fn(&mut IrBuilder)) -> ExprNode {

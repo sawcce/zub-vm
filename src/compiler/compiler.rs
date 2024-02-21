@@ -251,18 +251,17 @@ impl<'g> Compiler<'g> {
                 // to do recursion this is very important, otherwise
                 // not necessarily). Globals on the other hand are stored
                 // in a hashmap, and the value is popped from the stack
-                // so the Op::DefineGlobal needs to be put after the closure. 
+                // so the Op::DefineGlobal needs to be put after the closure.
 
                 if ir_func.var.depth != None {
-                    self.var_define(&ir_func.var, None); 
+                    self.var_define(&ir_func.var, None);
                 }
 
                 self.function_decl(ir_func);
 
                 if ir_func.var.depth == None {
-                    self.var_define(&ir_func.var, None); 
+                    self.var_define(&ir_func.var, None);
                 }
-
             }
 
             AnonFunction(ref ir_func) => {
@@ -280,7 +279,6 @@ impl<'g> Compiler<'g> {
             }
 
             Call(ref call) => {
-                println!("Call: {:?} {}", call.callee, call.args.len());
                 let arity = call.args.len();
 
                 if arity > 8 {
@@ -330,24 +328,43 @@ impl<'g> Compiler<'g> {
                 self.emit_byte(keys.len() as u8);
             }
 
-            If(ref cond, ref then, ref els) => {
-                self.compile_expr(cond);
+            If(ref cond, ref then, ref elifs, ref els) => {
+                let mut statements = Vec::new();
+                statements.push((cond.clone(), then.clone()));
+                statements.append(&mut elifs.clone());
 
-                let else_jmp = self.emit_jze();
+                let mut last_jze = None;
+                let mut end_jmps = Vec::new();
 
-                self.emit(Op::Pop);
-                self.compile_expr(then);
+                for (ref condition, ref body) in statements {
+                    println!("Cond: {condition:?}");
 
-                let end_jmp = self.emit_jmp();
+                    if let Some(idx) = last_jze {
+                        self.patch_jmp(idx);
+                    }
 
-                self.patch_jmp(else_jmp);
-                self.emit(Op::Pop);
+                    self.compile_expr(condition);
 
-                if let &Some(ref els) = els {
-                    self.compile_expr(els)
+                    last_jze = Some(self.emit_jze());
+
+                    self.emit(Op::Pop);
+                    self.compile_expr(body);
+
+                    let end_jmp = self.emit_jmp();
+                    end_jmps.push(end_jmp);
                 }
 
-                self.patch_jmp(end_jmp)
+                if let Some(idx) = last_jze {
+                    self.patch_jmp(idx);
+                }
+
+                if let Some(ref body) = els {
+                    self.compile_expr(body);
+                }
+
+                for jmp in end_jmps {
+                    self.patch_jmp(jmp);
+                }
             }
 
             While(ref cond, ref body) => {
@@ -469,7 +486,7 @@ impl<'g> Compiler<'g> {
                 self.emit(Op::Tuple);
                 self.emit_byte(members.len() as u8);
             }
-            
+
             _ => todo!(),
         }
     }

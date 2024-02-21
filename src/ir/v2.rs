@@ -41,13 +41,14 @@ pub trait Generate: Debug {
         Call { callee: self, args }
     }
 
-    fn if_true_do<T, F>(self, body: T) -> Conditional<Self, T, F>
+    fn if_true_do<'a, T, F>(self, body: T) -> Conditional<'a, Self, T, F>
     where
         Self: Generate + Sized,
     {
         Conditional {
             condition: self,
             if_true: body,
+            elifs: vec![],
             if_false: None,
         }
     }
@@ -297,13 +298,14 @@ where
 
 /// Structure to represent a conditional statement/expression.
 /// `if_false` needs to be boxed
-pub struct Conditional<C, T, E> {
+pub struct Conditional<'a, C, T, E> {
     condition: C,
     if_true: T,
+    elifs: Vec<(Box<dyn Generate + 'a>, Box<dyn Generate + 'a>)>,
     if_false: Option<E>,
 }
 
-impl<C, T, E> Conditional<C, T, E> {
+impl<'a, C, T, E> Conditional<'a, C, T, E> {
     /// Sets the else clause of that conditional. `else_body` needs
     /// to be boxed.
     pub fn else_do(mut self, else_body: E) -> Self {
@@ -311,17 +313,25 @@ impl<C, T, E> Conditional<C, T, E> {
         self
     }
 
-
+    pub fn else_if<A, B>(mut self, condition: A, body: B) -> Self
+    where
+        A: Generate + 'a,
+        B: Generate + 'a,
+    {
+        let tuple: (Box<dyn Generate>, Box<dyn Generate>) = (condition.boxed(), body.boxed());
+        self.elifs.push(tuple);
+        self
+    }
 }
 
-impl<C, T> Conditional<C, T, ()> {
+impl<'a, C, T> Conditional<'a, C, T, ()> {
     pub fn else_none(mut self) -> Self {
         self.if_false = Option::<()>::None;
         self
     }
 }
 
-impl<C, T, E> Debug for Conditional<C, T, E> {
+impl<'a, C, T, E> Debug for Conditional<'a, C, T, E> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Conditional")
             .field("condition", &"<...>")
@@ -331,7 +341,7 @@ impl<C, T, E> Debug for Conditional<C, T, E> {
     }
 }
 
-impl<C, T, E> Generate for Conditional<C, T, E>
+impl<'a, C, T, E> Generate for Conditional<'a, C, T, E>
 where
     C: Generate + Debug,
     T: Generate + Debug,
@@ -345,7 +355,13 @@ where
             None
         };
 
-        Expr::If(self.condition.generate(context), tr, fl).node(TypeInfo::nil())
+        let elifs = self
+            .elifs
+            .iter()
+            .map(|(x, y)| (x.generate(context), y.generate(context)))
+            .collect();
+
+        Expr::If(self.condition.generate(context), tr, elifs, fl).node(TypeInfo::nil())
     }
 
     fn type_info(&self, context: &IrBuilder) -> TypeInfo {

@@ -484,17 +484,15 @@ mod tests {
                     .equals(0)
                     .and((n % 5).equals(0))
                     .if_true_do(print.call(vec!["FizzBuzz!".to_string().boxed()]))
-                    .else_do(
-                        (n % 3)
-                            .equals(0)
-                            .if_true_do(print.call(vec!["Fizz!".to_string().boxed()]))
-                            .else_do(
-                                (n % 5)
-                                    .equals(0)
-                                    .if_true_do(print.call(vec!["Buzz!".to_string().boxed()]))
-                                    .else_do(print.call(vec!["".to_string().boxed()]))
-                            )
+                    .else_if(
+                        (n % 3).equals(0),
+                        print.call(vec!["Fizz!".to_string().boxed()]),
                     )
+                    .else_if(
+                        (n % 5).equals(0),
+                        print.call(vec!["Buzz!".to_string().boxed()]),
+                    )
+                    .else_do(print.call(vec!["".to_string().boxed()]))
                     .emit(builder);
 
                 n.bind(n + 1).emit(builder);
