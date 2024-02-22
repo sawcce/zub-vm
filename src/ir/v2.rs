@@ -62,6 +62,27 @@ pub trait Generate: Debug {
             body,
         }
     }
+
+    fn get_element<T>(self, index: T) -> GetElement<Self, T>
+    where
+        Self: Generate + Sized,
+    {
+        GetElement {
+            object: self,
+            index,
+        }
+    }
+
+    fn set_element<T, V>(self, index: T, value: V) -> SetElement<Self, T, V>
+    where
+        Self: Generate + Sized,
+    {
+        SetElement {
+            object: self,
+            index,
+            value,
+        }
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -467,6 +488,54 @@ where
 
     fn type_info(&self, context: &IrBuilder) -> TypeInfo {
         self.lhs.type_info(context)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct GetElement<O, I> {
+    object: O,
+    index: I,
+}
+
+impl<O, I> Generate for GetElement<O, I>
+where
+    O: Generate,
+    I: Generate,
+{
+    fn generate(&self, context: &mut IrBuilder) -> ExprNode {
+        Expr::GetElement(self.object.generate(context), self.index.generate(context))
+            .node(TypeInfo::any())
+    }
+
+    fn type_info(&self, context: &IrBuilder) -> TypeInfo {
+        TypeInfo::any()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SetElement<O, I, V> {
+    object: O,
+    index: I,
+    value: V,
+}
+
+impl<O, I, V> Generate for SetElement<O, I, V>
+where
+    O: Generate,
+    I: Generate,
+    V: Generate,
+{
+    fn generate(&self, context: &mut IrBuilder) -> ExprNode {
+        Expr::SetElement(
+            self.object.generate(context),
+            self.index.generate(context),
+            self.value.generate(context),
+        )
+        .node(TypeInfo::any())
+    }
+
+    fn type_info(&self, context: &IrBuilder) -> TypeInfo {
+        TypeInfo::nil()
     }
 }
 
